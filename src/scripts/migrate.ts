@@ -14,7 +14,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 // Em ambiente local/dev, usamos dotenv para facilitar, mas em prod vem do SO.
-const DIRECT_DATABASE_URL = process.env.DIRECT_DATABASE_URL || 'postgresql://zyco_admin:zyco_secret_vault_2026@127.0.0.1:5432/zyconomes_prod';
+const DIRECT_DATABASE_URL = process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL;
+if (!DIRECT_DATABASE_URL && process.env.NODE_ENV === 'production') {
+  throw new Error('FATAL: DIRECT_DATABASE_URL ou DATABASE_URL é obrigatória para migrações em produção.');
+}
 
 function log(level: string, event: string, message: string) {
   process.stdout.write(JSON.stringify({

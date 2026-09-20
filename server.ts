@@ -2,10 +2,18 @@ import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { requireAuth, AuthRequest } from './src/middleware/auth.ts';
+import { requireRole, requirePermission, resolveUserRole } from './src/middleware/rbac.ts';
+import { applyRateLimit } from './src/lib/RateLimiter.ts';
 import { db } from './src/db/index.ts';
-import { simulations, users } from './src/db/schema.ts';
+import { simulations, users, feedbacks, events } from './src/db/schema.ts';
 import { eq } from 'drizzle-orm';
 import Stripe from 'stripe';
+import { sanitizeRequestInputs, validateSchema, Schemas } from './src/middleware/securityGateway.ts';
+import { behavioralFirewallMiddleware, behavioralFirewall } from './src/middleware/behavioralFirewall.ts';
+import { circuitBreaker, IMMUTABLE_RELEASE_SNAPSHOT } from './src/lib/circuitBreaker.ts';
+import { releaseManager } from './src/lib/releaseManager.ts';
+import { securityPlaneService } from './src/services/securityPlane.ts';
+import { logSecurityEvent, getSecurityLogs, verifyLedgerIntegrity } from './src/lib/securityAudit.ts';
 
 let stripeClient: Stripe | null = null;
 function getStripe(): Stripe {
@@ -26,6 +34,8 @@ export function validateProductionBoot(env: Record<string, string | undefined> =
   if (env.NODE_ENV === 'production') {
     const fatalMissing: string[] = [];
     if (!env.DATABASE_URL) fatalMissing.push('DATABASE_URL');
+    if (!env.AUDIT_HMAC_SECRET) fatalMissing.push('AUDIT_HMAC_SECRET');
+    if (!env.SUPERADMIN_STEP_UP_SECRET) fatalMissing.push('SUPERADMIN_STEP_UP_SECRET');
 
     if (env.REQUIRE_PRODUCTION_STRIPE === 'true') {
       if (!env.STRIPE_SECRET_KEY) fatalMissing.push('STRIPE_SECRET_KEY');
@@ -53,7 +63,7 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // Stripe Webhook route requires raw body
+  // Stripe Webhook route requires raw body (before json parser)
   app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
     const sig = req.headers['stripe-signature'] as string;
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -106,22 +116,190 @@ async function startServer() {
     }
   });
 
-  app.use(express.json());
+  // ==============================================================================
+  // CAMADA 1 — Input & Action Security Gateway (Global)
+  // HTTP -> JSON Parser (100kb limit) -> Deep Sanitization -> Behavioral Firewall
+  // ==============================================================================
+  app.use(express.json({ limit: '100kb' }));
+  app.use(sanitizeRequestInputs);
+  app.use(behavioralFirewallMiddleware);
 
-  // API Routes
+  // ==============================================================================
+  // PUBLIC & DIAGNOSTIC ENDPOINTS
+  // ==============================================================================
   app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok' });
+    res.json({
+      status: 'ok',
+      service: 'zyconomes-api',
+      release: releaseManager.getActiveRelease().version,
+      timestamp: new Date().toISOString(),
+    });
   });
 
-  // Current User Info & Tier
+  app.get('/api/security/health', async (req, res) => {
+    try {
+      const health = await securityPlaneService.checkSubsystemsHealth();
+      res.json({
+        status: 'ok',
+        subsystems: health,
+        activeRelease: releaseManager.getActiveRelease(),
+        time: new Date().toISOString(),
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Falha ao verificar subsistemas', details: err.message });
+    }
+  });
+
+  app.get('/api/security/release-snapshot', (req, res) => {
+    res.json({
+      activeRelease: releaseManager.getActiveRelease(),
+      baselineSnapshot: IMMUTABLE_RELEASE_SNAPSHOT,
+    });
+  });
+
+  // ==============================================================================
+  // CAMADA 3 — Super Admin & Security Plane Control Endpoints
+  // Protected by: requireAuth + requireRole('SECURITY_ADMIN' | 'SUPER_ADMIN')
+  // ==============================================================================
+  app.get(
+    '/api/security/superadmin/telemetry',
+    requireAuth,
+    requireRole('SECURITY_ADMIN'),
+    applyRateLimit({ windowMs: 10000, maxRequests: 20, actionName: 'TELEMETRY_READ' }),
+    async (req: AuthRequest, res) => {
+      try {
+        const telemetry = await securityPlaneService.getSecurityPlaneOverview();
+        res.json({
+          ...telemetry,
+          releases: releaseManager.getReleases(),
+        });
+      } catch (err: any) {
+        console.error('Superadmin telemetry error:', err);
+        res.status(500).json({ error: 'Falha ao carregar telemetria do Control Plane' });
+      }
+    }
+  );
+
+  app.post(
+    '/api/security/superadmin/step-up',
+    requireAuth,
+    validateSchema(Schemas.superAdminStepUp),
+    applyRateLimit({ windowMs: 60000, maxRequests: 5, actionName: 'STEP_UP' }),
+    async (req: AuthRequest, res) => {
+      try {
+        const { stepUpPassword } = req.body;
+        const result = securityPlaneService.verifyStepUp(
+          stepUpPassword,
+          req.dbUser?.email || `user_${req.dbUser?.id || 'unknown'}`
+        );
+        if (!result.success) {
+          return res.status(401).json({ error: result.error });
+        }
+        res.json(result);
+      } catch (err: any) {
+        res.status(500).json({ error: 'Falha no desafio de elevação' });
+      }
+    }
+  );
+
+  app.post(
+    '/api/security/superadmin/quarantine/release',
+    requireAuth,
+    requireRole('SECURITY_ADMIN'),
+    validateSchema(Schemas.quarantineRelease),
+    async (req: AuthRequest, res) => {
+      try {
+        const { targetKey } = req.body;
+        const released = behavioralFirewall.releaseFromQuarantine(
+          targetKey,
+          req.dbUser?.email || `admin_${req.dbUser?.id}`
+        );
+        res.json({ success: true, released, targetKey });
+      } catch (err: any) {
+        res.status(500).json({ error: 'Falha ao desativar quarentena' });
+      }
+    }
+  );
+
+  app.post(
+    '/api/security/superadmin/circuit-breaker/toggle',
+    requireAuth,
+    requireRole('SECURITY_ADMIN'),
+    validateSchema(Schemas.circuitToggle),
+    async (req: AuthRequest, res) => {
+      try {
+        const { serviceName, targetState } = req.body;
+        circuitBreaker.forceState(
+          serviceName,
+          targetState,
+          req.dbUser?.email || `admin_${req.dbUser?.id}`
+        );
+        res.json({
+          success: true,
+          serviceName,
+          newState: circuitBreaker.getCircuitStatus(serviceName),
+        });
+      } catch (err: any) {
+        res.status(500).json({ error: 'Falha ao alterar circuito' });
+      }
+    }
+  );
+
+  // Sub-500ms Instant Rollback & Route Switch Endpoints
+  app.get(
+    '/api/security/superadmin/releases',
+    requireAuth,
+    requireRole('SECURITY_ADMIN'),
+    (req: AuthRequest, res) => {
+      res.json(releaseManager.getReleases());
+    }
+  );
+
+  app.post(
+    '/api/security/superadmin/rollback/trigger',
+    requireAuth,
+    requireRole('SECURITY_ADMIN'),
+    validateSchema(Schemas.rollbackTrigger),
+    (req: AuthRequest, res) => {
+      try {
+        const { reason } = req.body;
+        const actor = req.dbUser?.email || `security_admin_${req.dbUser?.id}`;
+        const result = releaseManager.triggerInstantRollback(reason, actor);
+        res.json(result);
+      } catch (err: any) {
+        res.status(500).json({ error: 'Falha ao executar rollback instantâneo', details: err.message });
+      }
+    }
+  );
+
+  app.post(
+    '/api/security/superadmin/rollback/restore',
+    requireAuth,
+    requireRole('SUPER_ADMIN'),
+    (req: AuthRequest, res) => {
+      try {
+        const actor = req.dbUser?.email || `super_admin_${req.dbUser?.id}`;
+        const result = releaseManager.restorePrimaryRelease(actor);
+        res.json(result);
+      } catch (err: any) {
+        res.status(500).json({ error: 'Falha ao restaurar release principal', details: err.message });
+      }
+    }
+  );
+
+  // ==============================================================================
+  // USER PROFILE & ACCOUNT ENDPOINTS
+  // ==============================================================================
   app.get('/api/user/me', requireAuth, async (req: AuthRequest, res) => {
     try {
       if (!req.dbUser) return res.status(401).json({ error: 'User not synced' });
+      const userRole = resolveUserRole(req);
       res.json({
         id: req.dbUser.id,
         email: req.dbUser.email,
         name: req.dbUser.name,
         tier: req.dbUser.tier || 'free',
+        role: userRole,
       });
     } catch (error: any) {
       console.error('Error fetching user profile:', error);
@@ -129,65 +307,132 @@ async function startServer() {
     }
   });
 
-  // Stripe Create Checkout Session
-  app.post('/api/stripe/create-checkout', requireAuth, async (req: AuthRequest, res) => {
-    try {
-      if (!req.dbUser) return res.status(401).json({ error: 'User not synced' });
-      
-      const priceId = process.env.STRIPE_PRICE_ID;
-      const secretKey = process.env.STRIPE_SECRET_KEY;
+  app.put(
+    '/api/user/profile',
+    requireAuth,
+    validateSchema(Schemas.updateProfile),
+    applyRateLimit({ windowMs: 10000, maxRequests: 5, actionName: 'UPDATE_PROFILE' }),
+    async (req: AuthRequest, res) => {
+      try {
+        if (!req.dbUser) return res.status(401).json({ error: 'User not synced' });
+        const { name, phone } = req.body;
 
-      if (!secretKey) {
-        return res.status(503).json({
-          error: 'Integração Stripe aguardando chave. Configure STRIPE_SECRET_KEY nas configurações do ambiente.'
+        const [updated] = await db.update(users)
+          .set({ name, phone })
+          .where(eq(users.id, req.dbUser.id))
+          .returning();
+
+        logSecurityEvent({
+          category: 'AUTHORIZED_MUTATION',
+          severity: 'LOW',
+          action: 'USER_PROFILE_UPDATED',
+          actor: req.dbUser.email,
+          ip: req.ip || '127.0.0.1',
+          details: { userId: req.dbUser.id, updatedFields: Object.keys(req.body) },
         });
+
+        res.json(updated);
+      } catch (error: any) {
+        console.error('Failed to update profile:', error);
+        res.status(500).json({ error: 'Failed to update profile' });
       }
-
-      const stripe = getStripe();
-      const appUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
-
-      // Usa STRIPE_PRICE_ID se fornecido, ou gera dinamicamente R$ 19,90/mês
-      const line_items = priceId
-        ? [{ price: priceId, quantity: 1 }]
-        : [{
-            price_data: {
-              currency: 'brl',
-              product_data: {
-                name: 'Zyconomes Premium',
-                description: 'Acesso irrestrito aos motores de valuation, inteligência preditiva e simulações ilimitadas.',
-              },
-              unit_amount: 1990, // R$ 19,90
-              recurring: {
-                interval: 'month' as const,
-              },
-            },
-            quantity: 1,
-          }];
-
-      const session = await stripe.checkout.sessions.create({
-        mode: 'subscription',
-        payment_method_types: ['card'],
-        line_items,
-        customer_email: req.dbUser.email,
-        metadata: {
-          userId: req.dbUser.id.toString(),
-          uid: req.user?.uid || '',
-        },
-        success_url: `${appUrl}/#sucesso?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${appUrl}/#premium`,
-      });
-
-      res.json({ url: session.url, sessionId: session.id });
-    } catch (error: any) {
-      console.error('Stripe error creating checkout session:', error);
-      res.status(500).json({ error: error.message || 'Erro ao criar sessão de checkout' });
     }
-  });
+  );
 
-  // Example Protected Route to get user's simulations
+  // ==============================================================================
+  // STRIPE PAYMENT INTEGRATION — SINGLE CANONICAL CONTRACT & ROUTE
+  // Protected by: requireAuth + requirePermission('STRIPE_CHECKOUT') + Rate Limiter
+  // No duplicated or unauthenticated fallback endpoints!
+  // ==============================================================================
+  app.post(
+    '/api/stripe/create-checkout',
+    requireAuth,
+    requirePermission('STRIPE_CHECKOUT'),
+    applyRateLimit({ windowMs: 60000, maxRequests: 5, actionName: 'STRIPE_CHECKOUT' }),
+    async (req: AuthRequest, res) => {
+      try {
+        if (!req.dbUser) return res.status(401).json({ error: 'User not synced' });
+
+        const origin = req.headers.origin || `http://${req.headers.host || 'localhost:3000'}`;
+        const secretKey = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_API_KEY;
+
+        if (secretKey) {
+          const stripe = getStripe();
+          const priceId = process.env.STRIPE_PRICE_ID;
+
+          const line_items = priceId
+            ? [{ price: priceId, quantity: 1 }]
+            : [{
+                price_data: {
+                  currency: 'brl',
+                  product_data: {
+                    name: 'Zyconomes Premium',
+                    description: 'Acesso total aos motores matemáticos institucionais, IA preditiva e relatórios exportáveis.',
+                  },
+                  unit_amount: 1990, // R$ 19,90/mês
+                  recurring: {
+                    interval: 'month' as const,
+                  },
+                },
+                quantity: 1,
+              }];
+
+          const session = await stripe.checkout.sessions.create({
+            mode: 'subscription',
+            payment_method_types: ['card'],
+            line_items,
+            customer_email: req.dbUser.email,
+            metadata: {
+              userId: req.dbUser.id.toString(),
+              uid: req.user?.uid || '',
+              app: 'zyconomes',
+            },
+            success_url: `${origin}/#sucesso?session_id={CHECKOUT_SESSION_ID}&status=active`,
+            cancel_url: `${origin}/#premium?canceled=true`,
+          });
+
+          logSecurityEvent({
+            category: 'AUTHORIZED_MUTATION',
+            severity: 'LOW',
+            action: 'STRIPE_CHECKOUT_SESSION_CREATED',
+            actor: req.dbUser.email,
+            ip: req.ip || '127.0.0.1',
+            details: { userId: req.dbUser.id, sessionId: session.id },
+          });
+
+          return res.json({ url: session.url, sessionId: session.id });
+        }
+
+        // Institutional Sandbox Mode for environments without live Stripe credentials
+        const mockSessionId = 'cs_demo_' + Math.random().toString(36).substring(2, 12);
+        logSecurityEvent({
+          category: 'AUTHORIZED_MUTATION',
+          severity: 'LOW',
+          action: 'STRIPE_SANDBOX_CHECKOUT_SIMULATED',
+          actor: req.dbUser.email,
+          ip: req.ip || '127.0.0.1',
+          details: { userId: req.dbUser.id, mockSessionId },
+        });
+
+        return res.json({
+          url: `${origin}/#sucesso?session_id=${mockSessionId}&demo=true&status=active`,
+          sessionId: mockSessionId,
+          demoMode: true,
+        });
+      } catch (error: any) {
+        console.error('Stripe error creating checkout session:', error);
+        res.status(500).json({ error: error.message || 'Erro ao criar sessão de checkout' });
+      }
+    }
+  );
+
+  // ==============================================================================
+  // SIMULATION ENDPOINTS (IDOR PROTECTED)
+  // ==============================================================================
   app.get('/api/simulations', requireAuth, async (req: AuthRequest, res) => {
     try {
       if (!req.dbUser) return res.status(401).json({ error: 'User not synced' });
+      // IDOR Protected: User can only read simulations belonging to their own userId
       const userSimulations = await db.select().from(simulations).where(eq(simulations.userId, req.dbUser.id));
       res.json(userSimulations);
     } catch (error: any) {
@@ -196,294 +441,258 @@ async function startServer() {
     }
   });
 
-  // Route to save a simulation
-  app.post('/api/simulations', requireAuth, async (req: AuthRequest, res) => {
-    try {
-      if (!req.dbUser) return res.status(401).json({ error: 'User not synced' });
-      const { toolId, name, data } = req.body;
-      const result = await db.insert(simulations).values({
-        userId: req.dbUser.id,
-        toolId,
-        name,
-        data,
-      }).returning();
-      res.json(result[0]);
-    } catch (error: any) {
-      console.error('Failed to save simulation:', error);
-      res.status(500).json({ error: 'Failed to save simulation' });
-    }
-  });
-
-  // Complete User Profile Route
-  app.put('/api/user/profile', requireAuth, async (req: AuthRequest, res) => {
-    try {
-      if (!req.dbUser) return res.status(401).json({ error: 'User not synced' });
-      const { name, phone } = req.body;
-      
-      const [updated] = await db.update(users)
-        .set({ name, phone })
-        .where(eq(users.id, req.dbUser.id))
-        .returning();
-        
-      res.json(updated);
-    } catch (error: any) {
-      console.error('Failed to update profile:', error);
-      res.status(500).json({ error: 'Failed to update profile' });
-    }
-  });
-
-  // Admin Stats Route
-  app.get('/api/admin/stats', requireAuth, async (req: AuthRequest, res) => {
-    try {
-      if (!req.dbUser || req.dbUser.tier !== 'admin') {
-        return res.status(403).json({ error: 'Forbidden: Admin access required' });
-      }
-      
-      // We do some dummy aggregation for the dashboard UI
-      res.json({
-        database: 'Cloud SQL (PostgreSQL)',
-        status: 'Online',
-        activeConnections: Math.floor(Math.random() * 50) + 10,
-        queryLatencyMs: Math.floor(Math.random() * 20) + 5,
-        totalSimulationsSaved: 1024,
-        activeUsers: 84
-      });
-    } catch (error: any) {
-      console.error('Admin stats error:', error);
-      res.status(500).json({ error: 'Internal Server Error' });
-    }
-  });
-
-  // Feedback Route
-  app.post('/api/feedback', requireAuth, async (req: AuthRequest, res) => {
-    try {
-      if (!req.dbUser) return res.status(401).json({ error: 'User not synced' });
-      const { text, type } = req.body;
-      if (!text || text.length < 5) {
-        return res.status(400).json({ error: 'O feedback deve conter texto.' });
-      }
-      
-      const { feedbacks } = await import('./src/db/schema.ts');
-      await db.insert(feedbacks).values({
-        userId: req.dbUser.id,
-        text,
-        type: type || 'neutral'
-      });
-      
-      res.json({ success: true });
-    } catch (error: any) {
-      console.error('Failed to process feedback:', error);
-      res.status(500).json({ error: 'Failed to process feedback' });
-    }
-  });
-
-  // Events tracking route
-  app.post('/api/events', requireAuth, async (req: AuthRequest, res) => {
-    try {
-      if (!req.dbUser) return res.status(401).json({ error: 'User not synced' });
-      const { eventName, metadata } = req.body;
-      
-      const { events } = await import('./src/db/schema.ts');
-      await db.insert(events).values({
-        userId: req.dbUser.id,
-        eventName,
-        metadata: metadata || {}
-      });
-      
-      res.json({ success: true });
-    } catch (error: any) {
-      console.error('Failed to process event:', error);
-      res.status(500).json({ error: 'Failed to process event' });
-    }
-  });
-
-  // Server-Side Immutable Audit Trail com HMAC Secret
-  const serverAuditTrail: Array<{
-    id: string;
-    serverTimestamp: string;
-    category: string;
-    severity: string;
-    action: string;
-    actor: string;
-    details: any;
-    serverHmac: string;
-  }> = [];
-
-  const AUDIT_HMAC_SECRET = process.env.AUDIT_HMAC_SECRET || 'zyconomes-audit-internal-salt-2026';
-
-  app.post('/api/audit/log', async (req, res) => {
-    try {
-      const { id, category, severity, action, actor, details, clientChecksum } = req.body;
-      const crypto = await import('crypto');
-      const serverTimestamp = new Date().toISOString();
-      const auditId = id || `srv-aud-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-
-      // HMAC server-side que não pode ser forjado ou adulterado no navegador
-      const payload = `${auditId}:${serverTimestamp}:${category}:${action}:${JSON.stringify(details || {})}`;
-      const serverHmac = crypto.createHmac('sha256', AUDIT_HMAC_SECRET).update(payload).digest('hex');
-
-      const entry = {
-        id: auditId,
-        serverTimestamp,
-        category: category || 'DIAGNOSTIC',
-        severity: severity || 'INFO',
-        action: action || 'UNKNOWN_ACTION',
-        actor: actor || 'anonymous_user',
-        details: { ...(details || {}), clientChecksum },
-        serverHmac,
-      };
-
-      serverAuditTrail.unshift(entry);
-      if (serverAuditTrail.length > 500) {
-        serverAuditTrail.pop();
-      }
-
-      // Opcional: Persiste no PostgreSQL se configurado
+  app.post(
+    '/api/simulations',
+    requireAuth,
+    requirePermission('SIMULATION_SAVE'),
+    validateSchema(Schemas.saveSimulation),
+    applyRateLimit({ windowMs: 10000, maxRequests: 10, actionName: 'SAVE_SIMULATION' }),
+    async (req: AuthRequest, res) => {
       try {
-        const { events } = await import('./src/db/schema.ts');
+        if (!req.dbUser) return res.status(401).json({ error: 'User not synced' });
+        const { toolId, name, data } = req.body;
+
+        const result = await db.insert(simulations).values({
+          userId: req.dbUser.id,
+          toolId,
+          name,
+          data,
+        }).returning();
+
+        logSecurityEvent({
+          category: 'AUTHORIZED_MUTATION',
+          severity: 'LOW',
+          action: 'SIMULATION_SAVED',
+          actor: req.dbUser.email,
+          ip: req.ip || '127.0.0.1',
+          details: { userId: req.dbUser.id, toolId, simulationId: result[0]?.id },
+        });
+
+        res.json(result[0]);
+      } catch (error: any) {
+        console.error('Failed to save simulation:', error);
+        res.status(500).json({ error: 'Failed to save simulation' });
+      }
+    }
+  );
+
+  // ==============================================================================
+  // FEEDBACK & EVENTS ENDPOINTS
+  // ==============================================================================
+  app.post(
+    '/api/feedback',
+    requireAuth,
+    requirePermission('FEEDBACK_SUBMIT'),
+    validateSchema(Schemas.feedback),
+    applyRateLimit({ windowMs: 30000, maxRequests: 5, actionName: 'SUBMIT_FEEDBACK' }),
+    async (req: AuthRequest, res) => {
+      try {
+        if (!req.dbUser) return res.status(401).json({ error: 'User not synced' });
+        const { text, type } = req.body;
+
+        await db.insert(feedbacks).values({
+          userId: req.dbUser.id,
+          text,
+          type: type || 'neutral',
+        });
+
+        res.json({ success: true });
+      } catch (error: any) {
+        console.error('Failed to process feedback:', error);
+        res.status(500).json({ error: 'Failed to process feedback' });
+      }
+    }
+  );
+
+  app.post(
+    '/api/events',
+    requireAuth,
+    requirePermission('EVENTS_SUBMIT'),
+    validateSchema(Schemas.event),
+    applyRateLimit({ windowMs: 10000, maxRequests: 30, actionName: 'SUBMIT_EVENT' }),
+    async (req: AuthRequest, res) => {
+      try {
+        if (!req.dbUser) return res.status(401).json({ error: 'User not synced' });
+        const { eventName, metadata } = req.body;
+
         await db.insert(events).values({
-          userId: null,
-          eventName: `AUDIT:${action}`,
-          metadata: entry
+          userId: req.dbUser.id,
+          eventName,
+          metadata: metadata || {},
         });
-      } catch (dbErr) {
-        // Fallback silencioso para buffer server-side se banco não responder
+
+        res.json({ success: true });
+      } catch (error: any) {
+        console.error('Failed to process event:', error);
+        res.status(500).json({ error: 'Failed to process event' });
       }
-
-      res.json({ success: true, serverTimestamp, serverHmac });
-    } catch (err: any) {
-      console.error('Server audit log failed:', err);
-      res.status(500).json({ error: 'Falha ao registrar auditoria no servidor' });
     }
-  });
+  );
 
-  app.get('/api/audit/logs', requireAuth, (req: AuthRequest, res) => {
-    if (!req.dbUser || req.dbUser.tier !== 'admin') {
-      return res.status(403).json({ error: 'Forbidden: Acesso restrito a administradores' });
+  // ==============================================================================
+  // SERVER-AUTHORITATIVE AUDIT TRAIL & LEDGER
+  // Clients CANNOT forge security actions or dictate critical log contents.
+  // POST /api/audit/log accepts ONLY client diagnostic events with forced prefix.
+  // Server-Authoritative ledger uses SHA-256 hash chaining + HMAC signatures.
+  // ==============================================================================
+  app.post(
+    '/api/audit/log',
+    validateSchema(Schemas.clientDiagnosticEvent),
+    applyRateLimit({ windowMs: 10000, maxRequests: 30, actionName: 'AUDIT_DIAGNOSTIC' }),
+    async (req, res) => {
+      try {
+        const { action, details } = req.body;
+
+        // Force prefix and category: clients can never declare security violations or privileged actions
+        const sanitizedAction = `CLIENT_${String(action).replace(/^CLIENT_/, '').toUpperCase()}`;
+        const actor = (req as AuthRequest).dbUser?.email || req.ip || 'client_anonymous';
+
+        const logEntry = logSecurityEvent({
+          category: 'CLIENT_DIAGNOSTIC',
+          severity: 'LOW',
+          action: sanitizedAction,
+          actor,
+          ip: req.ip || '127.0.0.1',
+          details: details || {},
+        });
+
+        res.json({
+          success: true,
+          id: logEntry.id,
+          index: logEntry.index,
+          entryHash: logEntry.entryHash,
+          serverHmac: logEntry.serverHmac,
+        });
+      } catch (err: any) {
+        console.error('Client diagnostic log failed:', err);
+        res.status(500).json({ error: 'Falha ao registrar diagnóstico no ledger' });
+      }
     }
-    res.json({ logs: serverAuditTrail, total: serverAuditTrail.length });
-  });
+  );
 
-  // AI Predictive Portfolio Rebalancing com Cache LRU em memória para alta concorrência
+  app.get(
+    '/api/audit/logs',
+    requireAuth,
+    requireRole('ADMIN'),
+    (req: AuthRequest, res) => {
+      const logs = getSecurityLogs(200);
+      const integrity = verifyLedgerIntegrity();
+      res.json({
+        logs,
+        total: logs.length,
+        integrity,
+      });
+    }
+  );
+
+  // ==============================================================================
+  // ADMIN DASHBOARD STATS
+  // ==============================================================================
+  app.get(
+    '/api/admin/stats',
+    requireAuth,
+    requireRole('ADMIN'),
+    async (req: AuthRequest, res) => {
+      try {
+        res.json({
+          database: 'Cloud SQL (PostgreSQL)',
+          status: 'Online',
+          activeConnections: 18,
+          queryLatencyMs: 4,
+          totalSimulationsSaved: 1024,
+          activeUsers: 84,
+          activeRelease: releaseManager.getActiveRelease().version,
+          ledgerEntries: getSecurityLogs(1).length > 0 ? getSecurityLogs(1000).length : 0,
+        });
+      } catch (error: any) {
+        console.error('Admin stats error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+      }
+    }
+  );
+
+  // ==============================================================================
+  // AI PREDICTIVE PORTFOLIO REBALANCING
+  // ==============================================================================
   const aiPortfolioCache = new Map<string, { data: any; timestamp: number }>();
-  const AI_CACHE_TTL = 1000 * 60 * 60; // 1 hora de cache para combinações de alocação idênticas
+  const AI_CACHE_TTL = 1000 * 60 * 60; // 1 hora de cache
 
-  app.post('/api/ai/rebalance', requireAuth, async (req: AuthRequest, res) => {
-    try {
-      if (!req.dbUser) return res.status(401).json({ error: 'User not synced' });
-      const { profile, amount } = req.body;
-      const cacheKey = `${String(profile || 'moderado').toLowerCase()}_${Math.round(Number(amount) || 0)}`;
+  app.post(
+    '/api/ai/rebalance',
+    requireAuth,
+    requirePermission('SIMULATION_EXECUTE'),
+    validateSchema(Schemas.aiRebalance),
+    applyRateLimit({ windowMs: 60000, maxRequests: 10, actionName: 'AI_REBALANCE' }),
+    async (req: AuthRequest, res) => {
+      try {
+        if (!req.dbUser) return res.status(401).json({ error: 'User not synced' });
+        const { profile, amount } = req.body;
+        const cacheKey = `${String(profile || 'moderado').toLowerCase()}_${Math.round(Number(amount) || 0)}`;
 
-      const cached = aiPortfolioCache.get(cacheKey);
-      if (cached && (Date.now() - cached.timestamp < AI_CACHE_TTL)) {
-        return res.json(cached.data);
-      }
-      
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        return res.status(500).json({ error: 'Gemini API Key missing' });
-      }
-      
-      const { GoogleGenAI } = await import('@google/genai');
-      const ai = new GoogleGenAI({
-        apiKey,
-        httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
-      });
-      
-      const prompt = `Como um consultor financeiro institucional (wealth manager), sugira uma alocação de portfólio para um investidor de perfil ${profile} com R$ ${amount} para investir.
-      Retorne APENAS um JSON válido seguindo a estrutura:
-      {
-        "assets": [
-          { "name": "Nome da Classe", "percentage": 30, "description": "Por que investir aqui" }
-        ],
-        "expectedReturn": "IPCA + 5%",
-        "riskLevel": "Moderado"
-      }`;
-
-      const response = await ai.models.generateContent({
-        model: "gemini-3.8-flash",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          temperature: 0.2
+        const cached = aiPortfolioCache.get(cacheKey);
+        if (cached && (Date.now() - cached.timestamp < AI_CACHE_TTL)) {
+          return res.json(cached.data);
         }
-      });
 
-      const responseText = response.text || '{}';
-      const parsedData = JSON.parse(responseText);
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+          return res.status(500).json({ error: 'Gemini API Key missing' });
+        }
 
-      // Salva no cache em memória
-      aiPortfolioCache.set(cacheKey, { data: parsedData, timestamp: Date.now() });
-      if (aiPortfolioCache.size > 500) {
-        const oldestKey = aiPortfolioCache.keys().next().value;
-        if (oldestKey) aiPortfolioCache.delete(oldestKey);
-      }
-
-      res.json(parsedData);
-    } catch (error: any) {
-      console.error('Failed to generate AI portfolio:', error);
-      res.status(500).json({ error: 'Failed to process AI recommendation' });
-    }
-  });
-
-  // Endpoint POST /api/stripe/create-checkout para assinaturas do plano Premium
-  app.post('/api/stripe/create-checkout', async (req, res) => {
-    try {
-      const origin = req.headers.origin || `http://${req.headers.host || 'localhost:3000'}`;
-      const stripeSecretKey = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_API_KEY;
-
-      if (stripeSecretKey) {
-        // Lazy-load do pacote Stripe para evitar falha em inicialização caso ausente
-        const StripeModule = await import('stripe');
-        const Stripe = StripeModule.default;
-        const stripe = new Stripe(stripeSecretKey, {
-          apiVersion: '2023-10-16' as any,
+        const { GoogleGenAI } = await import('@google/genai');
+        const ai = new GoogleGenAI({
+          apiKey,
+          httpOptions: { headers: { 'User-Agent': 'aistudio-build' } },
         });
 
-        const session = await stripe.checkout.sessions.create({
-          payment_method_types: ['card'],
-          line_items: [
-            {
-              price_data: {
-                currency: 'brl',
-                product_data: {
-                  name: 'Zyconomes Premium',
-                  description: 'Acesso total aos motores matemáticos institucionais, IA preditiva e relatórios exportáveis.',
-                },
-                unit_amount: 1990, // R$ 19,90/mês
-                recurring: {
-                  interval: 'month',
-                },
-              },
-              quantity: 1,
-            },
-          ],
-          mode: 'subscription',
-          success_url: `${origin}/#sucesso?session_id={CHECKOUT_SESSION_ID}&status=active`,
-          cancel_url: `${origin}/#premium?canceled=true`,
-          metadata: {
-            app: 'zyconomes',
-            tier: 'premium',
+        const prompt = `Como um consultor financeiro institucional (wealth manager), sugira uma alocação de portfólio para um investidor de perfil ${profile} com R$ ${amount} para investir.
+Retorne APENAS um JSON válido seguindo a estrutura:
+{
+  "assets": [
+    { "name": "Nome da Classe", "percentage": 30, "description": "Por que investir aqui" }
+  ],
+  "expectedReturn": "IPCA + 5%",
+  "riskLevel": "Moderado"
+}`;
+
+        const response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: prompt,
+          config: {
+            responseMimeType: 'application/json',
+            temperature: 0.2,
           },
         });
 
-        return res.json({ url: session.url, sessionId: session.id });
+        const responseText = response.text || '{}';
+        const parsedData = JSON.parse(responseText);
+
+        aiPortfolioCache.set(cacheKey, { data: parsedData, timestamp: Date.now() });
+        if (aiPortfolioCache.size > 500) {
+          const oldestKey = aiPortfolioCache.keys().next().value;
+          if (oldestKey) aiPortfolioCache.delete(oldestKey);
+        }
+
+        logSecurityEvent({
+          category: 'AUTHORIZED_MUTATION',
+          severity: 'LOW',
+          action: 'AI_PORTFOLIO_REBALANCED',
+          actor: req.dbUser.email,
+          ip: req.ip || '127.0.0.1',
+          details: { profile, amount },
+        });
+
+        res.json(parsedData);
+      } catch (error: any) {
+        console.error('Failed to generate AI portfolio:', error);
+        res.status(500).json({ error: 'Failed to process AI recommendation' });
       }
-
-      // Modo de demonstração / sandbox inteligente para testes sem quebrar o fluxo do usuário
-      const mockSessionId = 'cs_demo_' + Math.random().toString(36).substring(2, 12);
-      return res.json({
-        url: `${origin}/#sucesso?session_id=${mockSessionId}&demo=true&status=active`,
-        sessionId: mockSessionId,
-        demoMode: true,
-      });
-    } catch (error: any) {
-      console.error('Falha ao gerar sessão do Stripe Checkout:', error);
-      res.status(500).json({ error: error.message || 'Falha ao processar checkout do Stripe' });
     }
-  });
+  );
 
-  // Vite middleware for development
+  // ==============================================================================
+  // VITE FRONTEND MIDDLEWARE (SPA)
+  // ==============================================================================
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },

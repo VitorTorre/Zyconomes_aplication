@@ -58,7 +58,7 @@ export const ENV = {
   DATABASE_URL: process.env.DATABASE_URL!,
   REDIS_URL: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
   RABBITMQ_URL: process.env.RABBITMQ_URL || 'amqp://127.0.0.1:5672',
-  JWT_SECRET: process.env.JWT_SECRET || 'zyco_secret_key_prod_only'
+  JWT_SECRET: process.env.JWT_SECRET!
 };`
         }
       ]

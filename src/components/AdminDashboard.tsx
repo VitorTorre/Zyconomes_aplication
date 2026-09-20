@@ -23,6 +23,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { saveRateLimiter } from '../lib/RateLimiter';
 import { auditLogger, AuditEvent, AuditCategory, AuditSeverity } from '../lib/auditLogger';
 import { useBreakpoint } from '../hooks/useBreakpoint';
+import { SuperAdminSecurityPlane } from './SuperAdminSecurityPlane';
 
 const RateLimitWidget: React.FC = () => {
   const [stats, setStats] = useState(saveRateLimiter.getStats());
@@ -241,7 +242,7 @@ export const AdminDashboard: React.FC = () => {
     interacoes: Math.floor(Math.random() * 350) + 40,
   }));
 
-  const [mode, setMode] = useState<'admin' | 'b2b'>('admin');
+  const [mode, setMode] = useState<'admin' | 'security' | 'b2b'>('admin');
 
   return (
     <motion.div 
@@ -249,20 +250,65 @@ export const AdminDashboard: React.FC = () => {
       animate={{ opacity: 1, y: 0 }}
       className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"
     >
-      <div className="flex justify-between items-center mb-10">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-[#1A1F71]/10 rounded-xl">
-            <Server className="w-6 h-6 text-[#1A1F71]" />
+            {mode === 'security' ? (
+              <Shield className="w-6 h-6 text-[#1A1F71]" />
+            ) : (
+              <Server className="w-6 h-6 text-[#1A1F71]" />
+            )}
           </div>
           <div>
-            <h1 className="text-3xl font-black text-zinc-900 dark:text-zinc-100">{mode === 'admin' ? 'Admin Console' : 'Consultant Dashboard (B2B)'}</h1>
-            <p className="text-zinc-500 dark:text-zinc-400">{mode === 'admin' ? 'Monitoramento em Tempo Real & Concorrência' : 'Visão Geral das Carteiras de Clientes'}</p>
+            <h1 className="text-3xl font-black text-zinc-900 dark:text-zinc-100">
+              {mode === 'admin'
+                ? 'Admin Console'
+                : mode === 'security'
+                ? 'Super Admin (Security Plane)'
+                : 'Consultant Dashboard (B2B)'}
+            </h1>
+            <p className="text-zinc-500 dark:text-zinc-400">
+              {mode === 'admin'
+                ? 'Monitoramento em Tempo Real & Concorrência'
+                : mode === 'security'
+                ? 'Arquitetura de Segurança, Firewall Comportamental & Contenção'
+                : 'Visão Geral das Carteiras de Clientes'}
+            </p>
           </div>
         </div>
         
-        <div className="bg-zinc-100 p-1 rounded-lg flex text-sm font-bold">
-          <button onClick={() => setMode('admin')} className={`px-4 py-2 rounded-md transition-colors ${mode === 'admin' ? 'bg-white dark:bg-zinc-900 shadow-sm text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700'}`}>Admin Sys</button>
-          <button onClick={() => setMode('b2b')} className={`px-4 py-2 rounded-md transition-colors ${mode === 'b2b' ? 'bg-white dark:bg-zinc-900 shadow-sm text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700'}`}>Consultor B2B</button>
+        <div className="bg-zinc-100 dark:bg-zinc-800/80 p-1 rounded-xl flex flex-wrap text-sm font-bold gap-1">
+          <button
+            onClick={() => setMode('admin')}
+            className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+              mode === 'admin'
+                ? 'bg-white dark:bg-zinc-900 shadow-sm text-zinc-900 dark:text-zinc-100'
+                : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700'
+            }`}
+          >
+            Admin Sys
+          </button>
+          <button
+            onClick={() => setMode('security')}
+            className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer ${
+              mode === 'security'
+                ? 'bg-[#1A1F71] text-white shadow-sm'
+                : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700'
+            }`}
+          >
+            <Shield className="w-3.5 h-3.5" />
+            <span>Super Admin (Security Plane)</span>
+          </button>
+          <button
+            onClick={() => setMode('b2b')}
+            className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+              mode === 'b2b'
+                ? 'bg-white dark:bg-zinc-900 shadow-sm text-zinc-900 dark:text-zinc-100'
+                : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700'
+            }`}
+          >
+            Consultor B2B
+          </button>
         </div>
       </div>
 
@@ -580,6 +626,8 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </div>
         </>
+      ) : mode === 'security' ? (
+        <SuperAdminSecurityPlane />
       ) : (
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm p-8 text-center animate-in fade-in zoom-in-95">
           <div className="w-16 h-16 bg-[#1A1F71]/10 rounded-full flex items-center justify-center mx-auto mb-6">
