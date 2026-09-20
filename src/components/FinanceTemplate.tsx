@@ -97,9 +97,9 @@ export const FinanceTemplate: React.FC = () => {
   // Dynamic SEO Hook
   useEffect(() => {
     const seoData: Record<string, { title: string; desc: string }> = {
-      home: { title: "Zyconomes | Motores Matemáticos Financeiros", desc: "Erradicando o achismo financeiro através da matemática pura e de calculadoras precisas." },
+      home: { title: "Zyconomes | Motores Matemáticos Financeiros", desc: "Erradicando o 'achismo financeiro' através da matemática pura e sistemas espectadores precisos." },
       login: { title: "Login | Acesso Zyconomes", desc: "Acesse sua conta para salvar suas simulações e proteger seu patrimônio." },
-      about: { title: "Sobre Nós | Zyconomes", desc: "Conheça o manifesto, nossa missão de transparência algorítmica e a arquitetura desenvolvida pelo Vitor." },
+      about: { title: "Sobre Nós | Zyconomes", desc: "Conheça o nossa visão, missão de transparência financial e a arquitetura desenvolvida pelo Vitor." },
       contact: { title: "Fale Conosco | Zyconomes", desc: "Entre em contato para dúvidas técnicas, parcerias, suporte ou feedbacks." },
       privacy: { title: "Política de Privacidade LGPD | Zyconomes", desc: "Saiba como a Zyconomes protege seus dados através do modelo Client-Side." },
       terms: { title: "Termos de Uso | Zyconomes", desc: "Termos educacionais e matemáticos para uso das ferramentas e simuladores da Zyconomes." },
@@ -238,7 +238,7 @@ export const FinanceTemplate: React.FC = () => {
                 </button>
                 <button onClick={() => openBlog('independencia-financeira')} className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 rounded-xl text-left w-full group/btn">
                   <BookOpen className="w-4 h-4 text-[#1A1F71] group-hover/btn:scale-110 transition-transform" /> 
-                  <span className="text-zinc-700 font-semibold truncate">Matemática da Independência</span>
+                  <span className="text-zinc-700 font-semibold truncate">A Matemática da Independência</span>
                 </button>
                 <button onClick={() => openBlog('reserva-de-emergencia')} className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 rounded-xl text-left w-full group/btn">
                   <BookOpen className="w-4 h-4 text-[#1A1F71] group-hover/btn:scale-110 transition-transform" /> 
@@ -469,7 +469,7 @@ export const FinanceTemplate: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
             <div className="md:col-span-2">
               <span className="text-xl font-black tracking-tighter text-white mb-4 block">ZYCONOMES<span className="text-emerald-500">.</span></span>
-              <p className="text-sm text-zinc-500 mb-4 max-w-sm">A primeira plataforma de inteligência e diagnóstico financeiro 100% matemática, focada em erradicar o achismo e proteger seu patrimônio.</p>
+              <p className="text-sm text-zinc-500 mb-4 max-w-sm">A primeira plataforma de inteligência e diagnóstico financeiro 100% matemática, focada em erradicar o achismo e elevar o seu patrimônio.</p>
               <div className="text-xs text-zinc-600 font-mono space-y-1">
                 <p>CNPJ: 00.000.000/0001-00</p>
                 <p>Av. Paulista, 1000 - São Paulo, SP</p>
