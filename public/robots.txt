@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://zyconomes.com.br/sitemap.xml

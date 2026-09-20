@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Base de Entendimento do Projeto Zyconomes</title>
+  <style>
+    @page { size: A4 portrait; margin: 15mm; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1e293b; background: #fff; margin: 0; padding: 24px; line-height: 1.6; font-size: 13px; }
+    h1 { font-size: 22px; color: #0f172a; border-bottom: 2px solid #059669; padding-bottom: 8px; margin-bottom: 4px; }
+    .subtitle { color: #64748b; font-size: 13px; margin-bottom: 24px; }
+    h2 { font-size: 16px; color: #047857; margin-top: 24px; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
+    .box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px 16px; margin-bottom: 16px; }
+    .critical { border-left: 4px solid #ef4444; background: #fef2f2; }
+    .pill { display: inline-block; background: #d1fae5; color: #065f46; font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-right: 6px; }
+    .print-btn { background: #059669; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-bottom: 20px; }
+    @media print { .print-btn { display: none; } body { padding: 0; } }
+  </style>
+</head>
+<body>
+  <button class="print-btn" onclick="window.print()">Salvar / Imprimir como PDF</button>
+  <h1>BASE DE ENTENDIMENTO DO PROJETO ZYCONOMES</h1>
+  <div class="subtitle">Diagnóstico de Choque, Princípios de Engenharia e Arquitetura 80/20</div>
+
+  <h2>1. O Diagnóstico de Choque (Fábio Akita)</h2>
+  <div class="box critical">
+    <b>Problema Sistêmico Identificado:</b> Vício de complexidade prematura. O projeto pretendia utilizar orquestração de microsserviços distribuídos sem ter resolvido as fundações elementares de computação, sistemas operacionais e redes.
+  </div>
+  <ul>
+    <li><b>Credenciais no Código:</b> Senhas e segredos gravados diretamente nos arquivos de repositório.</li>
+    <li><b>Colapso de Conexões:</b> Conexões abertas diretamente no PostgreSQL (porta 5432) sem pool intermediário, causando exaustão de descritores de arquivo e RAM sob carga.</li>
+    <li><b>Falsa Idempotência:</b> Verificação de duplicidade com <code>SELECT</code> prévio, permitindo race conditions e duplicação sob requisições de milissegundos idênticos.</li>
+    <li><b>Acoplamento Síncrono:</b> Envio de e-mails na mesma thread da API HTTP, tornando a API refém do tempo de resposta do provedor SMTP.</li>
+  </ul>
+
+  <h2>2. As 5 Alavancas Críticas (Fundação Inegociável)</h2>
+  <div class="box">
+    <p><span class="pill">1</span> <b>Isolamento de Credenciais (.env):</b> Schema fail-fast com Zod no boot. Zero segredos versionados.</p>
+    <p><span class="pill">2</span> <b>Pool com PgBouncer (6432):</b> Modo transacional. Limite de 100 conexões no Postgres atendendo até 5.000 clientes.</p>
+    <p><span class="pill">3</span> <b>Idempotência Atômica (Redis SETNX):</b> Chave <code>idemp:cad:{email}</code> com TTL de 300s. Resposta 409 em &lt;2ms.</p>
+    <p><span class="pill">4</span> <b>Rastreabilidade Universal (Correlation-ID):</b> UUID v4 injetado na borda HTTP, propagado na fila e em logs JSON.</p>
+    <p><span class="pill">5</span> <b>Migrations de Banco:</b> Versionamento formal de DDL no pipeline automatizado pré-deploy.</p>
+  </div>
+
+  <h2>3. O Princípio 80/20 & Corte de Overengineering</h2>
+  <ul>
+    <li><b>Monólito Modular:</b> Fim dos múltiplos bancos e microsserviços prematuros; divisão lógica por domínios em um repositório coeso.</li>
+    <li><b>Corte de Service Mesh e Jaeger:</b> Substituídos por logs JSON estruturados no stdout com correlation_id.</li>
+    <li><b>RabbitMQ com DLQ:</b> Desacoplamento assíncrono suficiente para dezenas de milhares de mensagens sem a complexidade de cluster do Kafka.</li>
+  </ul>
+</body>
+</html>

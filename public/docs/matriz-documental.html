@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Matriz Documental da Zyconomes</title>
+  <style>
+    @page { size: A4 portrait; margin: 15mm; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1e293b; background: #fff; margin: 0; padding: 24px; line-height: 1.5; font-size: 13px; }
+    h1 { font-size: 22px; color: #0f172a; border-bottom: 2px solid #0284c7; padding-bottom: 8px; margin-bottom: 4px; }
+    .subtitle { color: #64748b; font-size: 13px; margin-bottom: 24px; }
+    h2 { font-size: 16px; color: #0369a1; margin-top: 24px; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; }
+    th { background: #f8fafc; color: #334155; text-align: left; padding: 8px 10px; border: 1px solid #cbd5e1; font-weight: 600; }
+    td { padding: 8px 10px; border: 1px solid #e2e8f0; vertical-align: top; }
+    tr:nth-child(even) { background: #f8fafc; }
+    .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #e0f2fe; color: #0369a1; }
+    .print-btn { background: #0284c7; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-bottom: 20px; }
+    @media print { .print-btn { display: none; } body { padding: 0; } }
+  </style>
+</head>
+<body>
+  <button class="print-btn" onclick="window.print()">Salvar / Imprimir como PDF</button>
+  <h1>MATRIZ DOCUMENTAL DA ZYCONOMES</h1>
+  <div class="subtitle">Mapeamento Canônico de Endpoints, Filas, Dados e Requisitos do Sistema</div>
+
+  <h2>1. Matriz de Endpoints</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Método & Rota</th>
+        <th>Domínio</th>
+        <th>Headers Obrigatórios</th>
+        <th>Payload</th>
+        <th>Respostas Alvo</th>
+        <th>Dependências</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>POST</b> /api/v1/usuarios</td>
+        <td>Onboarding de Conta</td>
+        <td>x-correlation-id</td>
+        <td>email, nome_completo, cpf, senha_plana</td>
+        <td>201 Created (&lt;35ms)<br>409 Conflict (&lt;2ms)</td>
+        <td>Redis SETNX, PgBouncer 6432, RabbitMQ</td>
+      </tr>
+      <tr>
+        <td><b>POST</b> /api/v1/auth/otp</td>
+        <td>Validação de OTP</td>
+        <td>x-correlation-id</td>
+        <td>email, otp_code</td>
+        <td>200 OK, 400 Inválido, 410 Expirado</td>
+        <td>Redis, PgBouncer</td>
+      </tr>
+      <tr>
+        <td><b>GET</b> /health</td>
+        <td>Health Probe</td>
+        <td>Nenhum</td>
+        <td>Nenhum</td>
+        <td>200 OK / 503 Down</td>
+        <td>Postgres, Redis, RabbitMQ</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>2. Matriz de Filas e Mensageria (AMQP)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Fila / Exchange</th>
+        <th>Tipo</th>
+        <th>Routing Key</th>
+        <th>Dead Letter Policy</th>
+        <th>Papel no Sistema</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>zyconomes_exchange</b></td>
+        <td>direct</td>
+        <td>N/A</td>
+        <td>N/A</td>
+        <td>Exchange de entrada da API Core</td>
+      </tr>
+      <tr>
+        <td><b>fila_emails_cadastro</b></td>
+        <td>quorum (durable)</td>
+        <td>usuario.cadastrado</td>
+        <td>DLX: zyconomes_dlx (emails_dlq_key)</td>
+        <td>Fila principal de consumo (prefetch=50)</td>
+      </tr>
+      <tr>
+        <td><b>zyconomes_emails_dlq</b></td>
+        <td>classic (durable)</td>
+        <td>emails_dlq_key</td>
+        <td>Retenção para inspeção manual</td>
+        <td>Dead Letter Queue para falhas persistentes</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>3. Dicionário de Dados Transacionais (8 Atributos)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Atributo</th>
+        <th>Tipo Físico</th>
+        <th>Regra de Validação</th>
+        <th>Classificação</th>
+        <th>Destino</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>1</td><td><b>email</b></td><td>VARCHAR(255)</td><td>RFC 5322 minúsculo</td><td>PII Sensível</td><td>PostgreSQL, Redis Lock, RabbitMQ</td></tr>
+      <tr><td>2</td><td><b>nome_completo</b></td><td>VARCHAR(150)</td><td>3-150 caracteres sanitizados</td><td>PII Básico</td><td>PostgreSQL, RabbitMQ</td></tr>
+      <tr><td>3</td><td><b>cpf</b></td><td>CHAR(11)</td><td>Módulo 11 (Receita)</td><td>PII Crítico (Mascarado)</td><td>PostgreSQL (hash único)</td></tr>
+      <tr><td>4</td><td><b>senha_hash</b></td><td>VARCHAR(255)</td><td>PBKDF2 HMAC-SHA512 (100k)</td><td>Segredo Crítico</td><td>PostgreSQL apenas</td></tr>
+      <tr><td>5</td><td><b>x-correlation-id</b></td><td>UUID v4</td><td>RFC 4122 padrão</td><td>Metadado</td><td>Headers, RabbitMQ, Logs JSON</td></tr>
+      <tr><td>6</td><td><b>idempotency_key</b></td><td>VARCHAR(64)</td><td>idemp:cad:{email} (TTL 300s)</td><td>Concorrência</td><td>Redis</td></tr>
+      <tr><td>7</td><td><b>otp_code</b></td><td>CHAR(6)</td><td>6 dígitos criptográficos</td><td>Temporário (600s)</td><td>Redis + SMTP</td></tr>
+      <tr><td>8</td><td><b>status</b></td><td>ENUM</td><td>PENDENTE_OTP / ATIVO / BLOQUEADO</td><td>Estado Negócio</td><td>PostgreSQL</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4. Matriz de Requisitos (RF / RNF)</h2>
+  <table>
+    <thead>
+      <tr><th>Código</th><th>Título</th><th>Métrica Alvo</th><th>Método de Validação</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><b>RF-01</b></td><td>Cadastro Unificado</td><td>Hash em &lt; 8ms</td><td>Testes de integração com payloads</td></tr>
+      <tr><td><b>RF-02</b></td><td>Idempotência</td><td>Rejeição em &lt; 2ms com HTTP 409</td><td>50 requisições simultâneas concorrentes</td></tr>
+      <tr><td><b>RF-06</b></td><td>Dead Letter Queue</td><td>0 mensagens perdidas sem rastro</td><td>Injeção de falha no SMTP e inspeção DLQ</td></tr>
+      <tr><td><b>RNF-01</b></td><td>Throughput 5.000 RPS</td><td>&gt;= 5.000 RPS contínuos</td><td>K6 Stress Test com 5.000 VUs</td></tr>
+      <tr><td><b>RNF-02</b></td><td>Latência P95 &lt; 40ms</td><td>P95 &lt;= 40ms | P99 &lt;= 95ms</td><td>K6 Threshold Metrics</td></tr>
+      <tr><td><b>RNF-03</b></td><td>Multiplexação PgBouncer</td><td>Max conexões Postgres &lt;= 100</td><td>Query pg_stat_activity sob carga</td></tr>
+      <tr><td><b>RNF-04</b></td><td>Rastreabilidade Total</td><td>100% de cobertura nos logs</td><td>Validação de schema de logs JSON</td></tr>
+      <tr><td><b>RNF-05</b></td><td>Segredos em .env</td><td>0 segredos no código</td><td>Scanner Gitleaks no repositório</td></tr>
+    </tbody>
+  </table>
+</body>
+</html>

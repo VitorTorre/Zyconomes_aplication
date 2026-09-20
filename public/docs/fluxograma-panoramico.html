@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Fluxograma Panorâmico - Zyconomes</title>
+  <style>
+    @page { size: A4 landscape; margin: 12mm; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1e293b; background: #fff; margin: 0; padding: 24px; line-height: 1.5; font-size: 12px; }
+    h1 { font-size: 20px; color: #0f172a; border-bottom: 2px solid #6366f1; padding-bottom: 6px; margin-bottom: 4px; }
+    .subtitle { color: #64748b; font-size: 12px; margin-bottom: 20px; }
+    h2 { font-size: 15px; color: #4f46e5; margin-top: 20px; margin-bottom: 10px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
+    pre { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px; font-family: "Courier New", Courier, monospace; font-size: 11px; overflow-x: auto; line-height: 1.3; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 11px; }
+    th { background: #f1f5f9; color: #334155; text-align: left; padding: 6px 8px; border: 1px solid #cbd5e1; }
+    td { padding: 6px 8px; border: 1px solid #e2e8f0; }
+    .print-btn { background: #6366f1; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-bottom: 16px; }
+    @media print { .print-btn { display: none; } body { padding: 0; } }
+  </style>
+</head>
+<body>
+  <button class="print-btn" onclick="window.print()">Salvar / Imprimir como PDF</button>
+  <h1>FLUXOGRAMA PANORÂMICO DO SISTEMA ZYCONOMES</h1>
+  <div class="subtitle">Mapeamento Procedural Ponta a Ponta do Ciclo Transacional</div>
+
+  <h2>1. Diagrama de Sequência Procedural</h2>
+  <pre>
+[ CLIENTE ]         [ API GATEWAY ]        [ REDIS (SETNX) ]      [ PGBOUNCER 6432 ]     [ RABBITMQ ]         [ EMAIL WORKER ]
+     │                     │                       │                       │                  │                     │
+  (1) POST /usuarios       │                       │                       │                  │                     │
+     ├────────────────────►│                       │                       │                  │                     │
+     │                     │ (2) UUID v4           │                       │                  │                     │
+     │                     │     (Correlation-ID)  │                       │                  │                     │
+     │                     │                       │                       │                  │                     │
+     │                     │ (3) SETNX idemp:cad   │                       │                  │                     │
+     │                     ├──────────────────────►│                       │                  │                     │
+     │                     │◄──────────────────────┤ [Se existir: 409 Conflict em &lt;2ms]       │                     │
+     │                     │                       │                       │                  │                     │
+     │                     │ (4) PBKDF2 Hash Assíncrono (libuv)            │                  │                     │
+     │                     │                       │                       │                  │                     │
+     │                     │ (5) INSERT users (PENDENTE_OTP)               │                  │                     │
+     │                     ├──────────────────────────────────────────────►│                  │                     │
+     │                     │◄──────────────────────────────────────────────┤                  │                     │
+     │                     │                       │                       │                  │                     │
+     │                     │ (6) Publish Evento UsuarioCadastrado                             │                     │
+     │                     ├─────────────────────────────────────────────────────────────────►│                     │
+     │                     │◄─────────────────────────────────────────────────────────────────┤                     │
+     │                     │                       │                       │                  │                     │
+  (7) HTTP 201 Created     │                       │                       │                  │                     │
+     │ (&lt; 35ms resposta)   │                       │                       │                  │                     │
+     │◄────────────────────┤                       │                       │                  │                     │
+     │                     │                       │                       │                  │ (8) Consumo         │
+     │                     │                       │                       │                  │     (prefetch=50)   │
+     │                     │                       │                       │                  ├────────────────────►│
+     │                     │                       │                       │                  │                     │
+     │                     │                       │                       │                  │                     │ (9) Gera OTP (6 dig)
+     │                     │                       │                       │                  │                     │     Disparo SMTP
+     │                     │                       │                       │                  │                     │
+     │                     │                       │                       │                  │ (10) ACK Sucesso    │
+     │                     │                       │                       │                  │◄────────────────────┤
+     │                     │                       │                       │                  │                     │
+     │                     │                       │                       │                  │ [Falha Persistente] │
+     │                     │                       │                       │                  │ (11) NACK sem requeue
+     │                     │                       │                       │                  │◄────────────────────┤
+     │                     │                       │                       │                  ▼                     │
+     │                     │                       │                       │         [ DEAD LETTER QUEUE ]          │
+     │                     │                       │                       │         zyconomes_emails_dlq           │
+  </pre>
+
+  <h2>2. Budget de Latência por Etapa (Meta P95 &lt; 40ms)</h2>
+  <table>
+    <thead>
+      <tr><th>Etapa</th><th>Componente</th><th>Mecanismo</th><th>Latência Média</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Ingestão & Roteamento</td><td>Express Middleware</td><td>UUID v4 injection</td><td>~0.8 ms</td></tr>
+      <tr><td>Idempotência</td><td>Redis</td><td>Primitiva SETNX</td><td>~1.5 ms</td></tr>
+      <tr><td>Hash Criptográfico</td><td>libuv / crypto</td><td>PBKDF2 (100.000 iterações)</td><td>~6.5 ms</td></tr>
+      <tr><td>Insert no Banco</td><td>PgBouncer 6432 ➔ Postgres</td><td>Transaction Pool</td><td>~8.0 ms</td></tr>
+      <tr><td>Publicação na Fila</td><td>RabbitMQ</td><td>Confirm Channel</td><td>~3.5 ms</td></tr>
+      <tr><td><b>RESPOSTA TOTAL HTTP</b></td><td><b>API Core</b></td><td><b>Tempo Total Síncrono</b></td><td><b>~20.8 ms (Alvo &lt; 40ms)</b></td></tr>
+      <tr><td>Disparo de E-mail</td><td>Worker SMTP</td><td>Desacoplado Assíncrono</td><td>150 - 450 ms</td></tr>
+    </tbody>
+  </table>
+</body>
+</html>

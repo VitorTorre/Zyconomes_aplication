@@ -1,0 +1,6 @@
+{
+  "name": "Zyconomes Architecture & Audit",
+  "description": "Modelo de desenvolvimento espiral/incremental, fluxograma de dados, hierarquia de classes e simulador de alta concorrência para o Zyconomes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

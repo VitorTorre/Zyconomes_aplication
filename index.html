@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Zyconomes | Motores Matemáticos Financeiros</title>
+    <meta name="description" content="Erradicando o achismo financeiro com calculadoras de Juros Compostos, Reserva de Emergência e Independência. Planejamento financeiro 100% gratuito e local." />
+    <meta name="keywords" content="calculadora de juros compostos, independência financeira, tabela price, planejamento financeiro" />
+    <meta name="author" content="Vitor (Zyconomes)" />
+    
+    <meta property="og:title" content="Zyconomes | Motores Matemáticos Financeiros" />
+    <meta property="og:description" content="Erradicando o achismo financeiro com calculadoras exatas." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    
+    <script>
+      (function() {
+        const theme = localStorage.getItem('zyc_theme');
+        if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
+    
+    <!-- Google Analytics 4 -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-ZYCONOMES1"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-ZYCONOMES1');
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

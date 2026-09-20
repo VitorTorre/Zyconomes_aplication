@@ -1,0 +1,6 @@
+{
+  "name": "Visa Institutional Portal",
+  "description": "Institutional finance and card benefits portal inspired by corporate design standards, featuring editorial cards, secure authentication modal, and global search.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
