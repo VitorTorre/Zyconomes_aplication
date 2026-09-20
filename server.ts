@@ -33,7 +33,16 @@ function getStripe(): Stripe {
 export function validateProductionBoot(env: Record<string, string | undefined> = process.env) {
   if (env.NODE_ENV === 'production') {
     const fatalMissing: string[] = [];
-    if (!env.DATABASE_URL) fatalMissing.push('DATABASE_URL');
+
+    // Aceita tanto DATABASE_URL explícita quanto o conjunto gerenciado Cloud SQL (SQL_HOST, SQL_DB_NAME, SQL_USER, SQL_PASSWORD)
+    const hasDatabaseConfig = Boolean(
+      (env.DATABASE_URL && env.DATABASE_URL.trim() !== '') ||
+      (env.SQL_HOST && env.SQL_DB_NAME && env.SQL_USER && env.SQL_PASSWORD)
+    );
+    if (!hasDatabaseConfig) {
+      fatalMissing.push('DATABASE_URL ou credenciais Cloud SQL (SQL_HOST, SQL_DB_NAME, SQL_USER, SQL_PASSWORD)');
+    }
+
     if (!env.AUDIT_HMAC_SECRET) fatalMissing.push('AUDIT_HMAC_SECRET');
     if (!env.SUPERADMIN_STEP_UP_SECRET) fatalMissing.push('SUPERADMIN_STEP_UP_SECRET');
 

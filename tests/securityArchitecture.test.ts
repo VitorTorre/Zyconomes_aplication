@@ -166,7 +166,8 @@ describe('Layer 3: Super Admin Security Plane & Telemetry', () => {
     expect(failure.error).toContain('inválida');
 
     // Senha de elevação válida
-    const success = securityPlaneService.verifyStepUp('zyconomes-superadmin-2026', 'admin@zyconomes.com');
+    const activeSecret = securityPlaneService.getActiveStepUpSecretForDevOrTest();
+    const success = securityPlaneService.verifyStepUp(activeSecret, 'admin@zyconomes.com');
     expect(success.success).toBe(true);
     expect(success.elevatedToken).toMatch(/^elevated_/);
     expect(securityPlaneService.isElevated(success.elevatedToken!)).toBe(true);

@@ -15,8 +15,14 @@ import * as path from 'path';
 
 // Em ambiente local/dev, usamos dotenv para facilitar, mas em prod vem do SO.
 const DIRECT_DATABASE_URL = process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL;
-if (!DIRECT_DATABASE_URL && process.env.NODE_ENV === 'production') {
-  throw new Error('FATAL: DIRECT_DATABASE_URL ou DATABASE_URL é obrigatória para migrações em produção.');
+const hasCloudSqlAdmin = Boolean(
+  process.env.SQL_HOST &&
+  process.env.SQL_DB_NAME &&
+  (process.env.SQL_ADMIN_USER || process.env.SQL_USER)
+);
+
+if (!DIRECT_DATABASE_URL && !hasCloudSqlAdmin && process.env.NODE_ENV === 'production') {
+  throw new Error('FATAL: DIRECT_DATABASE_URL, DATABASE_URL ou credenciais Cloud SQL são obrigatórias para migrações em produção.');
 }
 
 function log(level: string, event: string, message: string) {
@@ -30,13 +36,24 @@ function log(level: string, event: string, message: string) {
 }
 
 async function runMigrations() {
-  const client = new Client({
-    connectionString: DIRECT_DATABASE_URL,
-    connectionTimeoutMillis: 5000 // fail-fast se o banco estiver fora
-  });
+  const clientConfig = DIRECT_DATABASE_URL
+    ? {
+        connectionString: DIRECT_DATABASE_URL,
+        connectionTimeoutMillis: 5000,
+      }
+    : {
+        host: process.env.SQL_HOST,
+        user: process.env.SQL_ADMIN_USER || process.env.SQL_USER,
+        password: process.env.SQL_ADMIN_PASSWORD || process.env.SQL_PASSWORD,
+        database: process.env.SQL_DB_NAME,
+        connectionTimeoutMillis: 5000,
+      };
+
+  const client = new Client(clientConfig);
 
   try {
-    log('INFO', 'MigrationConnecting', `Conectando ao banco direto em ${DIRECT_DATABASE_URL.split('@')[1]}`);
+    const targetLabel = DIRECT_DATABASE_URL ? (DIRECT_DATABASE_URL.split('@')[1] || 'DATABASE_URL') : (process.env.SQL_HOST || 'Cloud SQL');
+    log('INFO', 'MigrationConnecting', `Conectando ao banco direto em ${targetLabel}`);
     await client.connect();
 
     // 1. Criar tabela de controle de migrations se não existir
