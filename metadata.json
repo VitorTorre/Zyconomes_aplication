@@ -1,6 +1,6 @@
 {
-  "name": "Zyconomes Architecture & Audit",
-  "description": "Modelo de desenvolvimento espiral/incremental, fluxograma de dados, hierarquia de classes e simulador de alta concorrência para o Zyconomes.",
+  "name": "Zyconomes | Motores Matemáticos Financeiros",
+  "description": "Erradicando o achismo financeiro com calculadoras de Juros Compostos, Reserva de Emergência e Independência. Planejamento financeiro 100% gratuito e local.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
