@@ -46,3 +46,33 @@ Conforme as diretrizes de Martin Kleppmann (*Designing Data-Intensive Applicatio
 2. **Suba o PgBouncer como proxy intermediário** na porta 6432 imediatamente via contêiner.
 3. **Injete o middleware de Redis `SETNX`** na primeira linha da rota de cadastro antes de executar transações.
 4. **Configure a DLX no RabbitMQ.** Sem isso, retentativas cegas derrubarão a fila em cascata.
+
+---
+
+## 5. O Protocolo Operacional em 4 Fases (Skin in the Game)
+
+### Fase 1: Code Freeze (Congelamento do Núcleo Blindado)
+- **Status:** `IMUTÁVEL`
+- **Escopo Bloqueado:** `server.ts`, `src/db/` (PostgreSQL / Drizzle ORM) e `src/lib/` (Motor Matemático).
+- **Diretriz:** Zero novas features no backend. Zero novos algoritmos. Alterações restritas estritamente a hotfixes de bugs críticos reportados por usuários reais ou ajustes de webhook do Stripe.
+
+### Fase 2: O Deploy de Borda (Topo de Funil Assíncrono)
+- **Status:** `OPERACIONAL`
+- **Arquitetura:** SPA React 19 + Vite servida na borda (Cloudflare Pages / CDN).
+- **Isolamento de Carga:** Cálculos básicos (Reserva de Emergência, Juros Compostos, DCF preliminar) executam 100% no cliente (browser) com latência <10ms. O tráfego anônimo de topo de funil não onera o banco de dados nem satura o pool de conexões.
+
+### Fase 3: A Ponte de Tensão (Stripe & Auth Transacional)
+- **Status:** `BLINDADO`
+- **Conversão (< 3 cliques):** Transição fluida de visitante anônimo para assinante pagante.
+- **Camada de Validação:**
+  - `auth.ts` emite tokens JWT seguros com rate-limiting.
+  - `securityGateway.ts` sanitiza os inputs sem falsos positivos.
+  - Webhook do Stripe garante 1 efeito lógico no banco para cada $N$ entregas concorrentes com registro no ledger de auditoria criptográfico (`HMAC SHA-256`).
+
+### Fase 4: O Teste de Caos em Produção (Red Teaming)
+- **Status:** `HOMOLOGADO`
+- **Defesas de Borda Ativas:**
+  - `behavioralFirewall.ts`: Drop imediato de injeções XSS, SQLi e tentativas de exploração IDOR.
+  - `RateLimiter.ts`: Bloqueio e ban temporário de IPs em caso de flooding ou brute-force (>100 req/min).
+  - Telemetria de incidentes e contenção refletida em tempo real no `SuperAdminSecurityPlane`.
+
