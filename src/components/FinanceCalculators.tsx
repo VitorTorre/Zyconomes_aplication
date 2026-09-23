@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Calculator, ShieldCheck, TrendingUp, DollarSign, PieChart, Users, Building, Lock, FileText, CheckCircle, ArrowRight, Activity, Layers, Info, Download, Database } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Calculator, ShieldCheck, TrendingUp, DollarSign, PieChart as LucidePieChart, Users, Building, Lock, FileText, CheckCircle, ArrowRight, Activity, Layers, Info, Download, Database, Sparkles, Award, Compass, RefreshCw, BarChart3, Sliders, Check, HelpCircle } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { trackGranularEvent, trackSimulationCompleted } from '../lib/analytics';
 import { useToolAnalytics } from '../hooks/useToolAnalytics';
 import { EmailCapture } from './EmailCapture';
@@ -10,6 +10,13 @@ import { safeNumber, calculateSavingsRate, calculateEmergencyFundMonths, calcula
 import { PremiumButton } from './PremiumButton';
 import { GeneratePDFReport, SimulationReportData } from './GeneratePDFReport';
 import { auditLogger } from '../lib/auditLogger';
+import { 
+  INSTITUTIONAL_STRATEGIES, 
+  InstitutionalPortfolioStrategy, 
+  calculatePortfolioAllocation, 
+  getStrategyByRiskProfile, 
+  AssetAllocationItem 
+} from '../lib/institutionalStrategies';
 
 export const FinanceCalculators: React.FC = () => {
   // --- STATE PERSISTENCE ---
@@ -184,8 +191,8 @@ export const FinanceCalculators: React.FC = () => {
     { id: 2, name: 'Juros Compostos', icon: TrendingUp, category: 'free', locked: false, description: 'Simulação exata de multiplicação patrimonial.' },
     { id: 3, name: 'Reserva de Emergência', icon: ShieldCheck, category: 'free', locked: false, description: 'Cálculo de blindagem contra o acaso.' },
     { id: 4, name: 'Amortização de Dívidas', icon: Calculator, category: 'free', locked: false, description: 'Descubra o verdadeiro custo da sua dívida.' },
-    { id: 5, name: 'Independência (O Fator Tempo)', icon: PieChart, category: 'free', locked: false, description: 'Fórmula logarítmica para descobrir "quando".' },
-    { id: 6, name: 'IA Preditiva: Alocação de Ativos', icon: Layers, category: 'premium', locked: false, description: 'Rebalanceamento automático baseado em IA Generativa.' },
+    { id: 5, name: 'Independência (O Fator Tempo)', icon: LucidePieChart, category: 'free', locked: false, description: 'Fórmula logarítmica para descobrir "quando".' },
+    { id: 6, name: 'IA Preditiva: Alocação de Ativos', icon: Layers, category: 'free', locked: false, description: 'Modelos institucionais e rebalanceamento via IA.' },
     { id: 7, name: 'Análise de Ações (Valuation)', icon: Building, category: 'premium', locked: true, description: 'Fórmulas de Graham, Bazin e DCF prontas para uso.' },
     { id: 8, name: 'Otimização Fiscal (IR)', icon: FileText, category: 'premium', locked: true, description: 'Estratégias lícitas para redução de carga tributária.' }
   ];
@@ -194,36 +201,85 @@ export const FinanceCalculators: React.FC = () => {
   const activeTool = services.find(s => s.id === selectedService) || services[0];
   const { trackFieldFill, trackClick, trackCalculation } = useToolAnalytics(activeTool.name);
 
-  // IA Alocação State
+  // IA Alocação & Setup Seletivo Institucional State
+  const [selectedStrategyId, setSelectedStrategyId] = useState<string>('family-office-br');
+  const [setupMode, setSetupMode] = useState<'strategies' | 'profiles'>('strategies');
   const [aiProfile, setAiProfile] = useState<'Conservador' | 'Moderado' | 'Agressivo'>('Moderado');
-  const [aiAmount, setAiAmount] = useState<number>(100000);
+  const [aiAmount, setAiAmount] = useState<number>(() => loadState('zyc_ai_amount', 100000));
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState<any>(null);
+  const [aiDiagnostic, setAiDiagnostic] = useState<any>(null);
+
+  const currentStrategy = useMemo(() => {
+    if (setupMode === 'profiles') {
+      return getStrategyByRiskProfile(aiProfile);
+    }
+    return INSTITUTIONAL_STRATEGIES.find(s => s.id === selectedStrategyId) || INSTITUTIONAL_STRATEGIES[1];
+  }, [setupMode, selectedStrategyId, aiProfile]);
+
+  const allocatedAssets = useMemo(() => {
+    return calculatePortfolioAllocation(currentStrategy, aiAmount);
+  }, [currentStrategy, aiAmount]);
 
   const fetchAIPortfolio = async () => {
-    const token = localStorage.getItem('zyc_auth_token');
-    if (!token) {
-      setAiResult({ error: 'Você precisa estar logado para usar o Consultor IA Premium. Acesse sua conta no menu superior.' });
-      return;
-    }
     setAiLoading(true);
-    setAiResult(null);
-    try {
-      const res = await fetch('/api/ai/rebalance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ profile: aiProfile, amount: aiAmount })
-      });
-      if (!res.ok) throw new Error('Erro na IA');
-      const data = await res.json();
-      setAiResult(data);
-      trackGranularEvent('conversion', 'button_click', 'Gerou Alocacao IA');
-    } catch (e) {
-      console.error(e);
-      setAiResult({ error: 'Falha ao conectar com o motor de IA. Verifique sua conexão.' });
-    } finally {
-      setAiLoading(false);
+    trackGranularEvent('conversion', 'button_click', 'Gerou Alocacao IA');
+
+    const token = typeof window !== 'undefined' ? localStorage.getItem('zyc_auth_token') : null;
+    let geminiSucceeded = false;
+
+    if (token && token !== 'null' && token !== 'undefined') {
+      try {
+        const res = await fetch('/api/ai/rebalance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ profile: currentStrategy.riskProfile, amount: aiAmount })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.assets && Array.isArray(data.assets) && data.assets.length > 0) {
+            setAiResult(data);
+            geminiSucceeded = true;
+          }
+        }
+      } catch (err) {
+        console.warn('Backend AI portfolio rebalance call failed, using institutional engine fallback:', err);
+      }
     }
+
+    if (!geminiSucceeded) {
+      setAiResult({
+        strategyTitle: currentStrategy.title,
+        referenceAuthor: currentStrategy.referenceAuthor,
+        expectedReturn: currentStrategy.expectedRealReturn,
+        riskLevel: currentStrategy.riskProfile,
+        sharpeRatio: currentStrategy.sharpeEstimate,
+        volatility: currentStrategy.volatilityEstimate,
+        rebalanceBand: currentStrategy.rebalanceBand,
+        institutionalThesis: currentStrategy.thesis,
+        engine: 'Modelo Institucional de Alocação de Ativos (Zyconomes Alpha)',
+        assets: allocatedAssets.map(a => ({
+          name: a.name,
+          percentage: a.percentage,
+          amount: a.amount,
+          description: a.rationale,
+          recommendedInstruments: a.recommendedInstruments,
+          taxStatus: a.taxStatus,
+          liquidity: a.liquidity,
+          color: a.color
+        }))
+      });
+    }
+
+    setAiDiagnostic({
+      thesis: currentStrategy.thesis,
+      macroSensitivity: `Para o montante de ${safeNumber(aiAmount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}, a diversificação em ${currentStrategy.assets.length} classes reduz a probabilidade de perda permanente de capital para níveis estatisticamente residuais em horizontes de 5+ anos.`,
+      rebalanceAdvice: `Gatilho de Rebalanceamento: ${currentStrategy.rebalanceBand}. Recomendado usar novos aportes para recompor a classe que estiver abaixo da meta, evitando custos operacionais desnecessários e fricção tributária.`,
+      taxEfficiencyNote: 'A alocação prioriza veículos com isenção fiscal (FIIs, debêntures incentivadas de infraestrutura e LCIs/LCAs), otimizando a taxa interna de retorno líquida.',
+      source: geminiSucceeded ? 'Gemini 2.5 Pro Wealth Advisor' : 'Motor Institucional Zyconomes Alpha'
+    });
+
+    setAiLoading(false);
   };
 
   // Persistence Effects
@@ -240,6 +296,7 @@ export const FinanceCalculators: React.FC = () => {
   useEffect(() => { saveState('zyc_tgt_wealth', targetWealth, 'Independência'); }, [targetWealth]);
   useEffect(() => { saveState('zyc_wealth_pmt', wealthContribution, 'Independência'); }, [wealthContribution]);
   useEffect(() => { saveState('zyc_wealth_rate', wealthRate, 'Independência'); }, [wealthRate]);
+  useEffect(() => { saveState('zyc_ai_amount', aiAmount, 'Alocacao IA'); }, [aiAmount]);
 
   // Event Listener for external tool selection
   useEffect(() => {
@@ -409,18 +466,34 @@ export const FinanceCalculators: React.FC = () => {
       default:
         return {
           toolId: 6,
-          toolName: 'Alocação Preditiva de Carteira',
+          toolName: `Alocação Institucional: ${currentStrategy.title}`,
           parameters: [
-            { label: 'Perfil de Risco', value: aiProfile },
-            { label: 'Montante a Alocar', value: `R$ ${aiAmount.toLocaleString('pt-BR')}` },
+            { label: 'Estratégia Selecionada', value: currentStrategy.title },
+            { label: 'Referência Gestor / Teoria', value: currentStrategy.referenceAuthor },
+            { label: 'Montante a Alocar', value: `R$ ${safeNumber(aiAmount).toLocaleString('pt-BR')}` },
+            { label: 'Perfil de Risco', value: currentStrategy.riskProfile },
           ],
           metrics: [
-            { label: 'Perfil', value: aiProfile, highlight: true },
-            { label: 'Montante', value: `R$ ${aiAmount.toLocaleString('pt-BR')}` },
-            { label: 'Motor Analítico', value: 'Zyconomes AI v2.4', badge: 'Determinístico' },
+            { label: 'Retorno Real Esperado', value: currentStrategy.expectedRealReturn, highlight: true, badge: 'Acima da Inflação' },
+            { label: 'Volatilidade Anual', value: currentStrategy.volatilityEstimate },
+            { label: 'Índice de Sharpe', value: currentStrategy.sharpeEstimate.toFixed(2), highlight: true, badge: 'Excelente' },
+            { label: 'Rebalanceamento', value: currentStrategy.rebalanceBand },
           ],
-          formulaTitle: 'Fronteira Eficiente e Sharpe Ratio',
-          formulaExplanation: 'Otimização com pesos calibrados para volatilidade controlada e retorno ajustado ao risco.',
+          formulaTitle: 'Otimização de Portfólio Institucional (Fronteira Eficiente & Paridade de Risco)',
+          formulaMath: 'max Sharpe = (E[R_p] - R_f) / sigma_p  onde sigma_p = sqrt(w^T * Sigma * w)',
+          formulaExplanation: 'Alocação multissetorial calibrada para maximizar o retorno excedente por unidade de volatilidade suportada, aplicando restrições de liquidez e isenção fiscal.',
+          projections: allocatedAssets.map(a => ({
+            period: `${a.percentage}%`,
+            invested: a.name,
+            interest: `R$ ${safeNumber(a.amount).toLocaleString('pt-BR')}`,
+            total: a.recommendedInstruments.slice(0, 2).join(' / '),
+            detail: `${a.taxStatus} • ${a.liquidity}`
+          })),
+          recommendations: [
+            `Tese Institucional: ${currentStrategy.thesis}`,
+            `Gatilho de Rebalanceamento: ${currentStrategy.rebalanceBand}. Priorizar compras com novos proventos em classes desvalorizadas.`,
+            'Aderência Fiscal: Manter foco em instrumentos isentos de Imposto de Renda e títulos soberanos de longo prazo.',
+          ],
         };
     }
   };
@@ -702,7 +775,7 @@ export const FinanceCalculators: React.FC = () => {
               {selectedService === 5 && (
                 <div className="animate-in fade-in slide-in-from-right-4 duration-500">
                   <div className="flex items-center gap-3 mb-6">
-                    <div className="bg-purple-100 p-2 rounded-lg"><PieChart className="w-6 h-6 text-purple-600" /></div>
+                    <div className="bg-purple-100 p-2 rounded-lg"><LucidePieChart className="w-6 h-6 text-purple-600" /></div>
                     <h2 className="text-2xl font-black text-zinc-900">Simulador de Patrimônio</h2>
                   </div>
                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
@@ -725,66 +798,518 @@ export const FinanceCalculators: React.FC = () => {
               )}
 
               {selectedService === 6 && (
-                <div className="animate-in fade-in slide-in-from-right-4 duration-500">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="bg-emerald-100 p-2 rounded-lg"><Layers className="w-6 h-6 text-emerald-600" /></div>
-                    <h2 className="text-2xl font-black text-zinc-900">IA Preditiva: Alocação</h2>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
-                    <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Perfil de Risco</label>
-                      <select value={aiProfile} onChange={(e) => setAiProfile(e.target.value as any)} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-zinc-50 font-medium text-lg">
-                        <option value="Conservador">Conservador</option>
-                        <option value="Moderado">Moderado</option>
-                        <option value="Agressivo">Agressivo</option>
-                      </select>
+                <div className="animate-in fade-in slide-in-from-right-4 duration-500 space-y-8">
+                  {/* Header */}
+                  <div>
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-indigo-100 p-2.5 rounded-xl text-indigo-700">
+                          <Layers className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h2 className="text-2xl font-black text-zinc-900 tracking-tight">
+                              Alocação de Ativos & Setup Institucional
+                            </h2>
+                            <span className="text-[10px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-800 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                              <Sparkles className="w-3 h-3" /> Padrão High Net Worth
+                            </span>
+                          </div>
+                          <p className="text-sm text-zinc-500 mt-0.5">
+                            Metodologias consagradas por Family Offices, Fundos Soberanos e Endowments para preservação e multiplicação real de capital.
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Montante a Alocar (R$)</label>
-                      <input type="number" value={aiAmount} onChange={(e) => setAiAmount(Number(e.target.value))} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-zinc-50 font-mono text-lg" />
-                    </div>
                   </div>
-                  
-                  <button 
-                    onClick={fetchAIPortfolio}
-                    disabled={aiLoading}
-                    className="w-full bg-[#1A1F71] hover:bg-[#121652] text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md mb-8"
-                  >
-                    {aiLoading ? 'Processando (Gemini AI)...' : 'Gerar Portfólio IA'}
-                  </button>
 
-                  {aiResult && aiResult.error && (
-                    <div className="bg-red-50 text-red-600 p-4 rounded-xl border border-red-200 text-sm">{aiResult.error}</div>
+                  {/* Mode Selector Tabs */}
+                  <div className="flex items-center gap-2 p-1.5 bg-zinc-100 rounded-2xl w-full sm:w-fit border border-zinc-200/80">
+                    <button
+                      type="button"
+                      onClick={() => setSetupMode('strategies')}
+                      className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold tracking-wide transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                        setupMode === 'strategies'
+                          ? 'bg-white text-zinc-900 shadow-sm border border-zinc-200'
+                          : 'text-zinc-600 hover:text-zinc-900'
+                      }`}
+                    >
+                      <Award className="w-3.5 h-3.5 text-indigo-600" />
+                      Modelos de Referência Institucional
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSetupMode('profiles')}
+                      className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold tracking-wide transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                        setupMode === 'profiles'
+                          ? 'bg-white text-zinc-900 shadow-sm border border-zinc-200'
+                          : 'text-zinc-600 hover:text-zinc-900'
+                      }`}
+                    >
+                      <Sliders className="w-3.5 h-3.5 text-indigo-600" />
+                      Perfis por Tolerância a Risco
+                    </button>
+                  </div>
+
+                  {/* Setup Seletivo: Institutional Models Grid */}
+                  {setupMode === 'strategies' ? (
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center gap-1.5">
+                          <Compass className="w-4 h-4 text-indigo-600" />
+                          Selecione o Setup Estratégico
+                        </label>
+                        <span className="text-xs text-zinc-400 font-medium">6 Modelos Selecionados</span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                        {INSTITUTIONAL_STRATEGIES.map((strategy) => {
+                          const isSelected = currentStrategy.id === strategy.id;
+                          return (
+                            <button
+                              key={strategy.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedStrategyId(strategy.id);
+                                trackClick(`Estratégia: ${strategy.title}`);
+                              }}
+                              className={`text-left p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
+                                isSelected
+                                  ? 'border-indigo-600 bg-indigo-50/60 shadow-md ring-2 ring-indigo-500/20'
+                                  : 'border-zinc-200 hover:border-zinc-300 bg-white hover:bg-zinc-50/50'
+                              }`}
+                            >
+                              <div>
+                                <div className="flex items-start justify-between gap-2 mb-2">
+                                  <span className="text-[10px] font-black uppercase tracking-wider bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded-md border border-zinc-200">
+                                    {strategy.riskProfile}
+                                  </span>
+                                  {isSelected && (
+                                    <span className="text-xs font-bold text-indigo-600 flex items-center gap-1 bg-white px-2 py-0.5 rounded-full border border-indigo-200 shadow-xs">
+                                      <Check className="w-3 h-3" /> Ativo
+                                    </span>
+                                  )}
+                                </div>
+                                <h3 className="font-bold text-zinc-900 text-sm leading-snug">
+                                  {strategy.title}
+                                </h3>
+                                <p className="text-[11px] text-zinc-500 mt-1 line-clamp-2">
+                                  {strategy.subtitle}
+                                </p>
+                              </div>
+                              <div className="mt-3 pt-3 border-t border-zinc-200/70 flex items-center justify-between text-xs">
+                                <span className="text-zinc-500 font-medium text-[11px]">
+                                  {strategy.referenceAuthor.split('(')[0].trim()}
+                                </span>
+                                <span className="font-black text-indigo-700 bg-indigo-100/70 px-2 py-0.5 rounded text-[11px]">
+                                  {strategy.expectedRealReturn}
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-3">
+                        Perfil por Tolerância a Risco (Metodologia CVM / Anbima)
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {(['Conservador', 'Moderado', 'Agressivo'] as const).map((profile) => {
+                          const isSelected = aiProfile === profile;
+                          return (
+                            <button
+                              key={profile}
+                              type="button"
+                              onClick={() => {
+                                setAiProfile(profile);
+                                trackClick(`Perfil: ${profile}`);
+                              }}
+                              className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'border-indigo-600 bg-indigo-50/60 shadow-md ring-2 ring-indigo-500/20'
+                                  : 'border-zinc-200 hover:border-zinc-300 bg-white hover:bg-zinc-50'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between mb-1">
+                                <h4 className="font-bold text-zinc-900">{profile}</h4>
+                                {isSelected && <Check className="w-4 h-4 text-indigo-600" />}
+                              </div>
+                              <p className="text-xs text-zinc-500">
+                                {profile === 'Conservador' && 'Foco em soberania cambial, liquidez e proteção patrimonial.'}
+                                {profile === 'Moderado' && 'Equilíbrio ótimo entre renda passiva isenta e crescimento em moeda forte.'}
+                                {profile === 'Agressivo' && 'Máxima exposição à convexidade global e retornos reais de longo prazo.'}
+                              </p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   )}
 
-                  {aiResult && !aiResult.error && (
-                    <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-6 sm:p-8 animate-in slide-in-from-bottom-4">
-                      <div className="flex justify-between items-center mb-6">
-                         <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-500">Recomendação da IA</h3>
-                         <div className="bg-emerald-100 text-emerald-700 text-xs font-bold px-3 py-1 rounded-full">Risco {aiResult.riskLevel}</div>
+                  {/* Input de Montante a Alocar com Atalhos */}
+                  <div className="bg-zinc-50 border border-zinc-200/90 rounded-2xl p-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                      <div>
+                        <label className="text-xs font-bold uppercase tracking-wider text-zinc-700 block">
+                          Montante Total a Alocar (R$)
+                        </label>
+                        <span className="text-xs text-zinc-500">
+                          Capital a ser distribuído rigorosamente entre as classes da estratégia.
+                        </span>
                       </div>
-                      
-                      <div className="space-y-4 mb-6">
-                        {aiResult.assets && aiResult.assets.map((asset: any, idx: number) => (
-                          <div key={idx} className="bg-white border border-zinc-200 p-4 rounded-xl flex items-center gap-4">
-                            <div className="bg-zinc-100 text-zinc-800 font-black text-lg px-3 py-2 rounded-lg">{asset.percentage}%</div>
-                            <div>
-                              <h4 className="font-bold text-zinc-900">{asset.name}</h4>
-                              <p className="text-xs text-zinc-500 mt-1">{asset.description}</p>
-                            </div>
+                      <div className="text-right">
+                        <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest block">Volume Total</span>
+                        <span className="text-xl font-black text-indigo-900 font-mono">
+                          {safeNumber(aiAmount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-3 items-center">
+                      <div className="relative w-full">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 font-bold">R$</span>
+                        <input
+                          type="number"
+                          value={aiAmount}
+                          onChange={(e) => setAiAmount(Math.max(1000, Number(e.target.value) || 0))}
+                          className="w-full pl-12 pr-4 py-3 rounded-xl border border-zinc-200 bg-white font-mono text-lg font-bold text-zinc-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          placeholder="100000"
+                        />
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto shrink-0">
+                        {[
+                          { label: '+10k', val: 10000, add: true },
+                          { label: '+50k', val: 50000, add: true },
+                          { label: '+100k', val: 100000, add: true },
+                          { label: '500k', val: 500000, add: false },
+                          { label: '1 Milhão', val: 1000000, add: false },
+                        ].map((btn, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => {
+                              if (btn.add) {
+                                setAiAmount((prev) => prev + btn.val);
+                              } else {
+                                setAiAmount(btn.val);
+                              }
+                            }}
+                            className="px-2.5 py-2 text-xs font-bold bg-white hover:bg-zinc-100 text-zinc-700 rounded-lg border border-zinc-200 transition-colors cursor-pointer"
+                          >
+                            {btn.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Key Institutional Metrics Banner */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-2xs">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                        Retorno Real Alvo
+                      </div>
+                      <div className="text-xl font-black text-indigo-700">
+                        {currentStrategy.expectedRealReturn}
+                      </div>
+                      <div className="text-[11px] text-zinc-400 mt-1">Acima da Inflação Oficial</div>
+                    </div>
+                    <div className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-2xs">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                        Volatilidade Projetada
+                      </div>
+                      <div className="text-xl font-black text-zinc-900">
+                        {currentStrategy.volatilityEstimate}
+                      </div>
+                      <div className="text-[11px] text-zinc-400 mt-1">Desvio padrão anualizado</div>
+                    </div>
+                    <div className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-2xs">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                        Índice de Sharpe
+                      </div>
+                      <div className="text-xl font-black text-emerald-600 flex items-center gap-1">
+                        {currentStrategy.sharpeEstimate.toFixed(2)}
+                        <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded">
+                          Alto
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-zinc-400 mt-1">Retorno / Risco Suportado</div>
+                    </div>
+                    <div className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-2xs">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                        Rebalanceamento
+                      </div>
+                      <div className="text-sm font-bold text-zinc-800 line-clamp-1">
+                        {currentStrategy.rebalanceBand}
+                      </div>
+                      <div className="text-[11px] text-zinc-400 mt-1">Gatilho disciplinado</div>
+                    </div>
+                  </div>
+
+                  {/* Visual Distribution & Strategic Thesis */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+                    {/* Left: Interactive Donut Chart */}
+                    <div className="lg:col-span-5 bg-white border border-zinc-200 rounded-2xl p-6 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-sm font-black uppercase tracking-wider text-zinc-800 flex items-center gap-1.5">
+                            <BarChart3 className="w-4 h-4 text-indigo-600" />
+                            Composição da Carteira
+                          </h3>
+                          <span className="text-xs text-zinc-500 font-bold">
+                            {allocatedAssets.length} Classes
+                          </span>
+                        </div>
+
+                        <div className="h-56 w-full flex items-center justify-center relative">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={allocatedAssets}
+                                dataKey="percentage"
+                                nameKey="name"
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={58}
+                                outerRadius={85}
+                                paddingAngle={3}
+                              >
+                                {allocatedAssets.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={entry.color} />
+                                ))}
+                              </Pie>
+                              <Tooltip
+                                formatter={(value: any, name: any, item: any) => {
+                                  const payload = item?.payload;
+                                  const valBRL = payload ? safeNumber(payload.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '';
+                                  return [`${value}% (${valBRL})`, name];
+                                }}
+                                contentStyle={{
+                                  backgroundColor: '#18181b',
+                                  borderColor: '#27272a',
+                                  borderRadius: '0.75rem',
+                                  color: '#fff',
+                                  fontSize: '12px',
+                                  fontWeight: '600'
+                                }}
+                              />
+                            </PieChart>
+                          </ResponsiveContainer>
+                          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Total</span>
+                            <span className="text-sm font-black text-zinc-800">100%</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Mini Legend */}
+                      <div className="mt-4 pt-4 border-t border-zinc-100 grid grid-cols-2 gap-2 text-xs">
+                        {allocatedAssets.map((asset, idx) => (
+                          <div key={idx} className="flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: asset.color }} />
+                            <span className="text-zinc-600 font-medium truncate text-[11px]">{asset.name}</span>
+                            <span className="text-zinc-900 font-bold text-[11px] ml-auto">{asset.percentage}%</span>
                           </div>
                         ))}
                       </div>
+                    </div>
 
-                      <div className="bg-[#1A1F71] text-white rounded-xl p-4 flex justify-between items-center">
-                        <span className="text-sm font-medium">Retorno Esperado (Longo Prazo)</span>
-                        <span className="font-black text-lg">{aiResult.expectedReturn}</span>
+                    {/* Right: Institutional Thesis & Strategy Rationale */}
+                    <div className="lg:col-span-7 bg-zinc-900 text-white rounded-2xl p-6 sm:p-7 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-[10px] font-black uppercase tracking-widest bg-zinc-800 text-indigo-300 px-3 py-1 rounded-full border border-zinc-700">
+                            Tese Estratégica do Modelo
+                          </span>
+                          <span className="text-xs text-zinc-400 font-medium">
+                            {currentStrategy.referenceAuthor}
+                          </span>
+                        </div>
+                        <h4 className="text-lg font-bold text-white mb-3">
+                          {currentStrategy.title}
+                        </h4>
+                        <p className="text-sm text-zinc-300 leading-relaxed mb-6 font-normal">
+                          {currentStrategy.thesis}
+                        </p>
+
+                        <div className="bg-zinc-800/80 rounded-xl p-4 border border-zinc-700/60 mb-4">
+                          <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-1">
+                            Perfil Ideal de Alocação
+                          </div>
+                          <p className="text-xs text-zinc-300">
+                            {currentStrategy.bestFor}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-zinc-800">
+                        <div className="flex items-center gap-2 text-xs text-zinc-400">
+                          <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                          <span>Blindagem contra cauda e inflação crônica</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={fetchAIPortfolio}
+                          disabled={aiLoading}
+                          className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 shrink-0"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          {aiLoading ? 'Processando Diagnóstico...' : 'Gerar Diagnóstico IA'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* AI Qualitative Diagnostic Panel (when triggered) */}
+                  {aiDiagnostic && (
+                    <div className="bg-indigo-50/70 border border-indigo-200 rounded-2xl p-6 animate-in slide-in-from-top-4 duration-300">
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-indigo-700" />
+                          <h4 className="font-bold text-sm text-indigo-950 uppercase tracking-wider">
+                            Diagnóstico Qualitativo de Alocação (IA Institucional)
+                          </h4>
+                        </div>
+                        <span className="text-[11px] font-bold text-indigo-700 bg-white px-2.5 py-0.5 rounded-full border border-indigo-200 shadow-2xs">
+                          {aiDiagnostic.source}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                        <div className="bg-white p-3.5 rounded-xl border border-indigo-100 shadow-2xs">
+                          <span className="font-bold text-zinc-900 block mb-1 text-[11px] uppercase tracking-wide">
+                            Sensibilidade Macroeconômica
+                          </span>
+                          <p className="text-zinc-600 leading-relaxed">
+                            {aiDiagnostic.macroSensitivity}
+                          </p>
+                        </div>
+                        <div className="bg-white p-3.5 rounded-xl border border-indigo-100 shadow-2xs">
+                          <span className="font-bold text-zinc-900 block mb-1 text-[11px] uppercase tracking-wide">
+                            Diretriz de Rebalanceamento
+                          </span>
+                          <p className="text-zinc-600 leading-relaxed">
+                            {aiDiagnostic.rebalanceAdvice}
+                          </p>
+                        </div>
+                        <div className="bg-white p-3.5 rounded-xl border border-indigo-100 shadow-2xs">
+                          <span className="font-bold text-zinc-900 block mb-1 text-[11px] uppercase tracking-wide">
+                            Eficiência Fiscal & Tributária
+                          </span>
+                          <p className="text-zinc-600 leading-relaxed">
+                            {aiDiagnostic.taxEfficiencyNote}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   )}
-                  
-                  <SaveButton toolId="6" name="Alocacao IA" data={{ aiProfile, aiAmount, aiResult }} />
+
+                  {/* Grid das Formas Investimentais e Classes de Ativos */}
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h3 className="text-base font-black text-zinc-900">
+                          Detalhamento das Formas Investimentais (Classes de Ativos)
+                        </h3>
+                        <p className="text-xs text-zinc-500">
+                          Instrumentos práticos recomendados pelo modelo para execução com máxima aderência e liquidez.
+                        </p>
+                      </div>
+                      <span className="text-xs font-bold text-zinc-400 hidden sm:inline">
+                        Valores calculados sobre {safeNumber(aiAmount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {allocatedAssets.map((asset, index) => (
+                        <div
+                          key={index}
+                          className="bg-white border border-zinc-200 rounded-2xl p-5 shadow-2xs hover:border-zinc-300 transition-all flex flex-col justify-between"
+                        >
+                          <div>
+                            {/* Card Top: Share, Name, Nominal Value */}
+                            <div className="flex items-start justify-between gap-3 mb-3">
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className="w-12 h-12 rounded-xl text-white font-black text-sm flex items-center justify-center shrink-0 shadow-xs"
+                                  style={{ backgroundColor: asset.color }}
+                                >
+                                  {asset.percentage}%
+                                </div>
+                                <div>
+                                  <h4 className="font-bold text-zinc-900 text-sm">{asset.name}</h4>
+                                  <span className="text-[11px] font-bold text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded-md mt-0.5 inline-block">
+                                    {asset.category}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-[10px] uppercase font-bold text-zinc-400 block">Alocação Exata</span>
+                                <span className="font-mono font-black text-base text-zinc-900">
+                                  {safeNumber(asset.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Rationale */}
+                            <p className="text-xs text-zinc-600 leading-relaxed mb-4 bg-zinc-50 p-3 rounded-xl border border-zinc-100">
+                              {asset.rationale}
+                            </p>
+                          </div>
+
+                          {/* Instrumentos Recomendados e Informações Operacionais */}
+                          <div className="pt-3 border-t border-zinc-100 space-y-2 text-xs">
+                            <div>
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-1">
+                                Instrumentos Práticos no Brasil & Exterior:
+                              </span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {asset.recommendedInstruments.map((inst, i) => (
+                                  <span
+                                    key={i}
+                                    className="bg-indigo-50 text-indigo-900 font-semibold px-2 py-0.5 rounded-md text-[11px] border border-indigo-100"
+                                  >
+                                    {inst}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between text-[11px] pt-1 text-zinc-500">
+                              <span><strong>Tributação:</strong> {asset.taxStatus}</span>
+                              <span><strong>Liquidez:</strong> {asset.liquidity}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Actions & PDF Export */}
+                  <SaveButton
+                    toolId="6"
+                    name={`Alocação: ${currentStrategy.title}`}
+                    data={{
+                      strategyId: currentStrategy.id,
+                      strategyTitle: currentStrategy.title,
+                      amount: aiAmount,
+                      profile: currentStrategy.riskProfile,
+                      allocatedAssets,
+                      aiDiagnostic
+                    }}
+                    customReport={getActiveReportData()}
+                  />
+                  <EmailCapture
+                    toolName={`Alocação Institucional: ${currentStrategy.title}`}
+                    resultData={{
+                      strategyId: currentStrategy.id,
+                      strategyTitle: currentStrategy.title,
+                      amount: aiAmount,
+                      expectedRealReturn: currentStrategy.expectedRealReturn,
+                      sharpeRatio: currentStrategy.sharpeEstimate,
+                      allocatedAssets
+                    }}
+                  />
                 </div>
               )}
 

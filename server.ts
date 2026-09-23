@@ -14,6 +14,7 @@ import { circuitBreaker, IMMUTABLE_RELEASE_SNAPSHOT } from './src/lib/circuitBre
 import { releaseManager } from './src/lib/releaseManager.ts';
 import { securityPlaneService } from './src/services/securityPlane.ts';
 import { logSecurityEvent, getSecurityLogs, verifyLedgerIntegrity } from './src/lib/securityAudit.ts';
+import { getStrategyByRiskProfile, calculatePortfolioAllocation } from './src/lib/institutionalStrategies.ts';
 
 let stripeClient: Stripe | null = null;
 function getStripe(): Stripe {
@@ -643,38 +644,71 @@ async function startServer() {
           return res.json(cached.data);
         }
 
+        const strategy = getStrategyByRiskProfile(profile === 'Conservador' || profile === 'Agressivo' ? profile : 'Moderado');
+        const calculatedAssets = calculatePortfolioAllocation(strategy, Number(amount) || 100000);
+        
+        let parsedData: any = null;
         const apiKey = process.env.GEMINI_API_KEY;
-        if (!apiKey) {
-          return res.status(500).json({ error: 'Gemini API Key missing' });
-        }
 
-        const { GoogleGenAI } = await import('@google/genai');
-        const ai = new GoogleGenAI({
-          apiKey,
-          httpOptions: { headers: { 'User-Agent': 'aistudio-build' } },
-        });
+        if (apiKey) {
+          try {
+            const { GoogleGenAI } = await import('@google/genai');
+            const ai = new GoogleGenAI({
+              apiKey,
+              httpOptions: { headers: { 'User-Agent': 'aistudio-build' } },
+            });
 
-        const prompt = `Como um consultor financeiro institucional (wealth manager), sugira uma alocação de portfólio para um investidor de perfil ${profile} com R$ ${amount} para investir.
+            const prompt = `Como um consultor financeiro institucional (wealth manager), sugira uma alocação de portfólio para um investidor de perfil ${profile} com R$ ${amount} para investir.
 Retorne APENAS um JSON válido seguindo a estrutura:
 {
   "assets": [
     { "name": "Nome da Classe", "percentage": 30, "description": "Por que investir aqui" }
   ],
   "expectedReturn": "IPCA + 5%",
-  "riskLevel": "Moderado"
+  "riskLevel": "${profile}",
+  "institutionalThesis": "Breve justificativa estratégica"
 }`;
 
-        const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: prompt,
-          config: {
-            responseMimeType: 'application/json',
-            temperature: 0.2,
-          },
-        });
+            const response = await ai.models.generateContent({
+              model: 'gemini-2.5-flash',
+              contents: prompt,
+              config: {
+                responseMimeType: 'application/json',
+                temperature: 0.2,
+              },
+            });
 
-        const responseText = response.text || '{}';
-        const parsedData = JSON.parse(responseText);
+            const responseText = response.text || '{}';
+            parsedData = JSON.parse(responseText);
+          } catch (geminiError) {
+            console.warn('[AI Engine] Gemini API indisponível ou limitada, aplicando motor de alocação institucional MPT:', geminiError);
+          }
+        }
+
+        // Se o Gemini não estiver configurado ou falhar, entrega o portfólio institucional com precisão de alto nível
+        if (!parsedData || !parsedData.assets || !Array.isArray(parsedData.assets) || parsedData.assets.length === 0) {
+          parsedData = {
+            assets: calculatedAssets.map(a => ({
+              name: a.name,
+              percentage: a.percentage,
+              amount: a.amount,
+              description: a.rationale,
+              recommendedInstruments: a.recommendedInstruments,
+              taxStatus: a.taxStatus,
+              liquidity: a.liquidity,
+              color: a.color
+            })),
+            expectedReturn: strategy.expectedRealReturn,
+            riskLevel: strategy.riskProfile,
+            sharpeRatio: strategy.sharpeEstimate,
+            volatility: strategy.volatilityEstimate,
+            rebalanceBand: strategy.rebalanceBand,
+            institutionalThesis: strategy.thesis,
+            strategyTitle: strategy.title,
+            referenceAuthor: strategy.referenceAuthor,
+            engine: 'Zyconomes Institutional Portfolio Engine'
+          };
+        }
 
         aiPortfolioCache.set(cacheKey, { data: parsedData, timestamp: Date.now() });
         if (aiPortfolioCache.size > 500) {
@@ -693,8 +727,30 @@ Retorne APENAS um JSON válido seguindo a estrutura:
 
         res.json(parsedData);
       } catch (error: any) {
-        console.error('Failed to generate AI portfolio:', error);
-        res.status(500).json({ error: 'Failed to process AI recommendation' });
+        console.error('Failed to generate AI portfolio, serving institutional fallback:', error);
+        const fallbackStrategy = getStrategyByRiskProfile(req.body?.profile === 'Conservador' || req.body?.profile === 'Agressivo' ? req.body.profile : 'Moderado');
+        const fallbackAssets = calculatePortfolioAllocation(fallbackStrategy, Number(req.body?.amount) || 100000);
+        res.json({
+          assets: fallbackAssets.map(a => ({
+            name: a.name,
+            percentage: a.percentage,
+            amount: a.amount,
+            description: a.rationale,
+            recommendedInstruments: a.recommendedInstruments,
+            taxStatus: a.taxStatus,
+            liquidity: a.liquidity,
+            color: a.color
+          })),
+          expectedReturn: fallbackStrategy.expectedRealReturn,
+          riskLevel: fallbackStrategy.riskProfile,
+          sharpeRatio: fallbackStrategy.sharpeEstimate,
+          volatility: fallbackStrategy.volatilityEstimate,
+          rebalanceBand: fallbackStrategy.rebalanceBand,
+          institutionalThesis: fallbackStrategy.thesis,
+          strategyTitle: fallbackStrategy.title,
+          referenceAuthor: fallbackStrategy.referenceAuthor,
+          engine: 'Zyconomes Institutional Portfolio Engine (Emergency Fallback)'
+        });
       }
     }
   );
