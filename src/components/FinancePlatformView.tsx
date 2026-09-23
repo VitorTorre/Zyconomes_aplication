@@ -86,6 +86,7 @@ export const FinancePlatformView: React.FC<Props> = ({
   const [transferAmount, setTransferAmount] = useState('2500.00');
   const [pixKey, setPixKey] = useState('pix.investidor@zyconomes.com.br');
   const [transferSuccess, setTransferSuccess] = useState<string | null>(null);
+  const [tradeExecutionNotice, setTradeExecutionNotice] = useState<string | null>(null);
 
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
@@ -569,6 +570,12 @@ export const FinancePlatformView: React.FC<Props> = ({
               </div>
             </div>
 
+            {tradeExecutionNotice && (
+              <div className="mt-3 p-3 bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 text-xs font-mono">
+                {tradeExecutionNotice}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
               <div className="p-4 bg-[#111] border border-[#333] hover:border-emerald-500/50 transition-all">
                 <div className="flex justify-between items-start mb-3">
@@ -581,7 +588,10 @@ export const FinancePlatformView: React.FC<Props> = ({
                 <div className="text-xl font-bold font-mono text-emerald-500 mt-2">115% CDI</div>
                 <div className="text-[9px] text-zinc-500 mt-1 uppercase">Min Alloc: 100 BRL • T+0</div>
                 <button 
-                  onClick={() => alert('Execution submitted: 5,000 BRL')}
+                  onClick={() => {
+                    setTradeExecutionNotice('Ordem submetida com sucesso: 5.000 BRL em CDB Zyconomes Liquidity');
+                    setTimeout(() => setTradeExecutionNotice(null), 4000);
+                  }}
                   className="w-full mt-4 py-1.5 bg-zinc-200 hover:bg-white text-black text-[10px] font-bold transition-colors cursor-pointer uppercase tracking-widest"
                 >
                   Execute Trade
@@ -599,7 +609,10 @@ export const FinancePlatformView: React.FC<Props> = ({
                 <div className="text-xl font-bold font-mono text-blue-500 mt-2">IPCA + 6.85%</div>
                 <div className="text-[9px] text-zinc-500 mt-1 uppercase">Min Alloc: 1,000 BRL • Tax Exempt</div>
                 <button 
-                  onClick={() => alert('Execution submitted: 10,000 BRL')}
+                  onClick={() => {
+                    setTradeExecutionNotice('Ordem submetida com sucesso: 10.000 BRL em Real Estate Bond (90D)');
+                    setTimeout(() => setTradeExecutionNotice(null), 4000);
+                  }}
                   className="w-full mt-4 py-1.5 bg-zinc-200 hover:bg-white text-black text-[10px] font-bold transition-colors cursor-pointer uppercase tracking-widest"
                 >
                   Execute Trade
@@ -617,7 +630,10 @@ export const FinancePlatformView: React.FC<Props> = ({
                 <div className="text-xl font-bold font-mono text-purple-500 mt-2">+24.8% (12M)</div>
                 <div className="text-[9px] text-zinc-500 mt-1 uppercase">Active FX/Rates • T+30</div>
                 <button 
-                  onClick={() => alert('Execution submitted: 25,000 BRL')}
+                  onClick={() => {
+                    setTradeExecutionNotice('Ordem submetida com sucesso: 25.000 BRL em Zyconomes Macro Global');
+                    setTimeout(() => setTradeExecutionNotice(null), 4000);
+                  }}
                   className="w-full mt-4 py-1.5 bg-zinc-200 hover:bg-white text-black text-[10px] font-bold transition-colors cursor-pointer uppercase tracking-widest"
                 >
                   Execute Trade

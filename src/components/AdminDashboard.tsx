@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, BarChart, Bar } from 'recharts';
-import { saveRateLimiter } from '../lib/RateLimiter';
+import { saveRateLimiter } from '../lib/clientRateLimiter';
 import { auditLogger, AuditEvent, AuditCategory, AuditSeverity } from '../lib/auditLogger';
 import { useBreakpoint } from '../hooks/useBreakpoint';
 import { SuperAdminSecurityPlane } from './SuperAdminSecurityPlane';

@@ -33,6 +33,22 @@ export interface StructuredSecurityLog {
   serverHmac: string;
 }
 
+function getSecureRandomHex(bytesCount: number): string {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomBytes === 'function') {
+      return crypto.randomBytes(bytesCount).toString('hex');
+    }
+  } catch {
+    // Fallback when crypto is externalized or browser-confined
+  }
+  if (typeof globalThis !== 'undefined' && globalThis.crypto?.getRandomValues) {
+    const arr = new Uint8Array(bytesCount);
+    globalThis.crypto.getRandomValues(arr);
+    return Array.from(arr, b => b.toString(16).padStart(2, '0')).join('');
+  }
+  return Array.from({ length: bytesCount }, () => Math.floor(Math.random() * 256).toString(16).padStart(2, '0')).join('');
+}
+
 // Zero hardcoded secrets: Use environment secret or cryptographically secure runtime random in dev/test
 const AUDIT_HMAC_SECRET: string = process.env.AUDIT_HMAC_SECRET || (() => {
   if (process.env.NODE_ENV === 'production') {
@@ -40,7 +56,7 @@ const AUDIT_HMAC_SECRET: string = process.env.AUDIT_HMAC_SECRET || (() => {
   }
   const globalStore = globalThis as any;
   if (!globalStore.__zyco_runtime_audit_secret) {
-    globalStore.__zyco_runtime_audit_secret = crypto.randomBytes(32).toString('hex');
+    globalStore.__zyco_runtime_audit_secret = getSecureRandomHex(32);
   }
   return globalStore.__zyco_runtime_audit_secret;
 })();

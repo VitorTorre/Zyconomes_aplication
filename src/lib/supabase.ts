@@ -15,7 +15,14 @@ export const saveLead = async (email: string, source_tool: string, result_data: 
     await new Promise(resolve => setTimeout(resolve, 800));
     
     // Salva no localStorage para simular o dashboard interno
-    const leads = JSON.parse(localStorage.getItem('zyc_mock_leads') || '[]');
+    let leads: any[] = [];
+    try {
+      const stored = localStorage.getItem('zyc_mock_leads');
+      leads = stored ? JSON.parse(stored) : [];
+      if (!Array.isArray(leads)) leads = [];
+    } catch {
+      leads = [];
+    }
     leads.push({ email, source_tool, created_at: new Date().toISOString() });
     localStorage.setItem('zyc_mock_leads', JSON.stringify(leads));
     

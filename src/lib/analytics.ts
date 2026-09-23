@@ -62,7 +62,14 @@ export const trackGranularEvent = (
 
   // Persistência Local (Mock para o Dashboard B2B)
   try {
-    const history = JSON.parse(localStorage.getItem('zyc_granular_events') || '[]');
+    let history: GranularEvent[] = [];
+    try {
+      const stored = localStorage.getItem('zyc_granular_events');
+      history = stored ? JSON.parse(stored) : [];
+      if (!Array.isArray(history)) history = [];
+    } catch {
+      history = [];
+    }
     history.push(event);
     if (history.length > 1000) history.shift();
     localStorage.setItem('zyc_granular_events', JSON.stringify(history));

@@ -31,6 +31,7 @@ export const TradingTerminalView: React.FC<{ metrics: SystemMetrics }> = ({ metr
   // Security & Export State
   const [circuitBreakerTripped, setCircuitBreakerTripped] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [terminalNotice, setTerminalNotice] = useState<string | null>(null);
   const MAX_DRAWDOWN = -15000.00; 
 
   // --- High-Frequency Tick Simulation ---
@@ -106,7 +107,8 @@ export const TradingTerminalView: React.FC<{ metrics: SystemMetrics }> = ({ metr
       });
       
       if (response.status === 409) {
-         alert('Exportação bloqueada. Um processo de extração já está em andamento para a sua sessão.');
+         setTerminalNotice('Exportação bloqueada. Um processo de extração já está em andamento para a sua sessão.');
+         setTimeout(() => setTerminalNotice(null), 4000);
          return;
       }
       if (!response.ok) throw new Error('Falha no Backend');
@@ -122,7 +124,8 @@ export const TradingTerminalView: React.FC<{ metrics: SystemMetrics }> = ({ metr
       document.body.removeChild(a);
     } catch (err) {
       console.error(err);
-      alert('Falha crítica de I/O ao extrair o relatório.');
+      setTerminalNotice('Falha crítica de I/O ao extrair o relatório.');
+      setTimeout(() => setTerminalNotice(null), 4000);
     } finally {
       setIsExporting(false);
     }
@@ -232,6 +235,13 @@ export const TradingTerminalView: React.FC<{ metrics: SystemMetrics }> = ({ metr
           <div ref={priceRef} className="text-4xl font-bold tracking-tighter text-[#0A1628] font-mono">---</div>
           <div ref={spreadRef} className="text-[11px] text-gray-400 font-medium tracking-widest mt-2">SPREAD: ---</div>
         </div>
+
+        {/* Notice Banner */}
+        {terminalNotice && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex-shrink-0 text-amber-800 text-xs font-semibold">
+            {terminalNotice}
+          </div>
+        )}
 
         {/* Capital Circuit Breaker Alert */}
         {circuitBreakerTripped && (

@@ -5,7 +5,7 @@ import { trackGranularEvent, trackSimulationCompleted } from '../lib/analytics';
 import { useToolAnalytics } from '../hooks/useToolAnalytics';
 import { EmailCapture } from './EmailCapture';
 import { ShareButtons } from './ZyconomesWidgets';
-import { saveRateLimiter } from '../lib/RateLimiter';
+import { saveRateLimiter } from '../lib/clientRateLimiter';
 import { safeNumber, calculateSavingsRate, calculateEmergencyFundMonths, calculateIndependenceYears } from '../lib/financeMath';
 import { PremiumButton } from './PremiumButton';
 import { GeneratePDFReport, SimulationReportData } from './GeneratePDFReport';
@@ -20,11 +20,18 @@ export const FinanceCalculators: React.FC = () => {
   const [savingResult, setSavingResult] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [rateLimitError, setRateLimitError] = useState(false);
+  const [openFinanceSynced, setOpenFinanceSynced] = useState(false);
 
   const handleLocalSave = (toolId: string, name: string, data: any) => {
     try {
       const existingStr = localStorage.getItem('zyc_saved_simulations');
-      const existing = existingStr ? JSON.parse(existingStr) : [];
+      let existing: any[] = [];
+      try {
+        existing = existingStr ? JSON.parse(existingStr) : [];
+        if (!Array.isArray(existing)) existing = [];
+      } catch {
+        existing = [];
+      }
       const newEntry = {
         id: `sim-${Date.now()}`,
         toolId,
@@ -144,8 +151,13 @@ export const FinanceCalculators: React.FC = () => {
   };
 
   const loadState = (key: string, defaultVal: any) => {
-    const saved = localStorage.getItem(key);
-    return saved ? JSON.parse(saved) : defaultVal;
+    try {
+      const saved = localStorage.getItem(key);
+      if (!saved || saved === 'undefined' || saved === 'null') return defaultVal;
+      return JSON.parse(saved);
+    } catch {
+      return defaultVal;
+    }
   };
 
   const [activeCategory, setActiveCategory] = useState<'free' | 'premium' | 'enterprise'>('free');
@@ -191,7 +203,7 @@ export const FinanceCalculators: React.FC = () => {
   const fetchAIPortfolio = async () => {
     const token = localStorage.getItem('zyc_auth_token');
     if (!token) {
-      alert('Você precisa estar logado para usar o Consultor IA Premium.');
+      setAiResult({ error: 'Você precisa estar logado para usar o Consultor IA Premium. Acesse sua conta no menu superior.' });
       return;
     }
     setAiLoading(true);
@@ -508,16 +520,24 @@ export const FinanceCalculators: React.FC = () => {
                       <h2 className="text-2xl font-black text-zinc-900">Diagnóstico Financeiro</h2>
                     </div>
                     
-                    <button 
-                      onClick={() => {
-                        setIncome(15000);
-                        setExpenses(9500);
-                        alert('Open Finance: Dados bancários sincronizados com sucesso via Pluggy/Belvo (Mock).');
-                      }}
-                      className="text-xs font-bold bg-zinc-900 hover:bg-zinc-800 text-white px-3 py-2 rounded-lg flex items-center gap-2 transition-colors"
-                    >
-                      <Database className="w-3 h-3" /> Conectar Banco
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {openFinanceSynced && (
+                        <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
+                          Sincronizado!
+                        </span>
+                      )}
+                      <button 
+                        onClick={() => {
+                          setIncome(15000);
+                          setExpenses(9500);
+                          setOpenFinanceSynced(true);
+                          setTimeout(() => setOpenFinanceSynced(false), 3500);
+                        }}
+                        className="text-xs font-bold bg-zinc-900 hover:bg-zinc-800 text-white px-3 py-2 rounded-lg flex items-center gap-2 transition-colors cursor-pointer"
+                      >
+                        <Database className="w-3 h-3" /> Conectar Banco
+                      </button>
+                    </div>
                   </div>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">

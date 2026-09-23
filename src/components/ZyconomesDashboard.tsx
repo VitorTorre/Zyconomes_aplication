@@ -17,8 +17,22 @@ export const ZyconomesDashboard: React.FC = () => {
 
   useEffect(() => {
     // Leitura simulada de dados locais para o Dashboard de Validação
-    const events: GranularEvent[] = JSON.parse(localStorage.getItem('zyc_granular_events') || '[]');
-    const leads = JSON.parse(localStorage.getItem('zyc_mock_leads') || '[]');
+    let events: GranularEvent[] = [];
+    let leads: any[] = [];
+    try {
+      const storedEvents = localStorage.getItem('zyc_granular_events');
+      events = storedEvents ? JSON.parse(storedEvents) : [];
+      if (!Array.isArray(events)) events = [];
+    } catch {
+      events = [];
+    }
+    try {
+      const storedLeads = localStorage.getItem('zyc_mock_leads');
+      leads = storedLeads ? JSON.parse(storedLeads) : [];
+      if (!Array.isArray(leads)) leads = [];
+    } catch {
+      leads = [];
+    }
 
     // Simulação básica de métricas
     const sessions = new Set(events.map(e => e.session_id)).size || 1;

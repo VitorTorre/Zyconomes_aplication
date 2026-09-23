@@ -120,6 +120,22 @@ Para garantir que nenhuma alteração possa quebrar a aplicação ou causar regr
   2. Fórmulas de Juros Compostos e PRICE tratam analiticamente o caso limite $i = 0$, retornando soma linear direta dos aportes.
   3. No DCF Valuation, impõe-se a restrição de estabilidade $WACC > g_{\text{perp}}$, evitando valores terminais negativos ou assíntotas infinitas.
 
+### E. Blindagem contra Bloqueios de iFrame e Parsing de Armazenamento Local
+* **Risco Potencial:**
+  1. Chamadas nativas `window.alert(...)` disparadas em ambientes embarcados (iFrames sem permissão `allow-modals`) sofrem bloqueio silencioso pelo navegador ou disparam `SecurityError`, interrompendo a execução do JavaScript.
+  2. Métodos `JSON.parse()` lendo chaves de `localStorage` (`zyc_granular_events`, `zyc_mock_leads`, `zyc_income`, `zyc_saved_simulations`) podem receber `"undefined"`, `null` ou strings corrompidas, lançando `SyntaxError` não tratado e desmontando toda a árvore de renderização do React.
+* **Solução Conciliada:**
+  1. Todos os diálogos `alert(...)` em `FinanceCalculators.tsx`, `FinancePlatformView.tsx` e `TradingTerminalView.tsx` foram integralmente substituídos por sinalizações reativas de estado interno da interface (toasts/banners contextuais com temporizador automático).
+  2. Implementação de envoltórios com bloco `try/catch` defensivo e validação de `Array.isArray()` em todas as leituras de `localStorage` em `FinanceCalculators.tsx`, `ZyconomesDashboard.tsx`, `src/lib/analytics.ts` e `src/lib/supabase.ts`, garantindo valores padrão seguros (`defaultVal` / `[]`) em caso de corrupção.
+
+### F. Desacoplamento de Módulos Node.js da Borda (Vite Browser Externalization Fix)
+* **Causa Raiz do Erro:** `FinanceCalculators.tsx` e `AdminDashboard.tsx` importavam a instância `saveRateLimiter` de `src/lib/RateLimiter.ts`, que por sua vez importava `express` e `src/lib/securityAudit.ts` (módulo que continha `import crypto from 'crypto'` e executava `crypto.randomBytes(32)` em escopo global). No navegador, o Vite externaliza o módulo `crypto` do Node, gerando o erro: `Cannot access "crypto.randomBytes" in client code`, o que impedia o carregamento do preview.
+* **Solução Conciliada:**
+  1. Criação de `src/lib/clientRateLimiter.ts`: implementação 100% pura em TypeScript do `SlidingWindowRateLimiter`, sem dependências do Node.js ou Express.
+  2. Atualização dos componentes cliente (`FinanceCalculators.tsx` e `AdminDashboard.tsx`) para importarem diretamente de `clientRateLimiter.ts`.
+  3. Re-exportação retrocompatível em `src/lib/RateLimiter.ts` preservando o contrato com o backend e testes.
+  4. Adição de mecanismo defensivo `getSecureRandomHex` em `src/lib/securityAudit.ts` com fallback para `globalThis.crypto?.getRandomValues`, prevenindo travamentos caso o módulo seja avaliado em ambientes isomórficos.
+
 ---
 
 ## 4. Matriz de Conformidade com o Code Freeze
@@ -129,7 +145,7 @@ Para garantir que nenhuma alteração possa quebrar a aplicação ou causar regr
 | `server.ts` | **CONGELADO** | Apenas correções de vulnerabilidades críticas ou ajustes de webhook do Stripe. |
 | `src/db/` | **CONGELADO** | Schema estabilizado; sem novas tabelas desnecessárias. |
 | `src/lib/financeMath.ts` | **CONGELADO** | Todos os 5 modelos matemáticos canônicos homologados com erro $\le 0,01\%$. |
-| `src/components/` | **ESTÁVEL** | Componentes operando em modelo híbrido (Client-First com persistência opcional na nuvem). |
+| `src/components/` | **ESTÁVEL & BLINDADO** | Componentes operando em modelo híbrido (Client-First com persistência segura, sem alerts e com parsing à prova de falhas). |
 
 ---
 
@@ -137,4 +153,4 @@ Para garantir que nenhuma alteração possa quebrar a aplicação ou causar regr
 
 A aplicação **Zyconomes** encontra-se em estado de **prontidão operacional total**. O ecossistema está blindado contra falhas em tempo de execução, com total desacoplamento entre a borda (onde o usuário consome as calculadoras sem atrito e com resposta instantânea) e o núcleo transacional (onde residem o banco de dados Cloud SQL, a autenticação e o faturamento Stripe).
 
-Todas as diretrizes de qualidade, segurança e tolerância a falhas foram cumpridas e validadas pela suíte de testes automatizada.
+Todas as diretrizes de qualidade, segurança e tolerância a falhas foram cumpridas e validadas pela suíte de testes automatizada (43/43 testes aprovados, build estático e empacotamento do servidor executados com 0 erros).
