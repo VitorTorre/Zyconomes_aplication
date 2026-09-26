@@ -1,12 +1,21 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Calculator, Target, TrendingUp, HelpCircle, ChevronRight } from 'lucide-react';
+import { Calculator, Target, TrendingUp, HelpCircle, ChevronRight, RefreshCw, Link2 } from 'lucide-react';
+import { useFinancialData } from '../context/FinancialDataContext';
 
 export const WealthSimulatorView: React.FC = () => {
-  const [initialAmount, setInitialAmount] = useState<number>(10000);
-  const [monthlyContribution, setMonthlyContribution] = useState<number>(1500);
-  const [annualRate, setAnnualRate] = useState<number>(10.5);
-  const [years, setYears] = useState<number>(20);
+  const {
+    savings: initialAmount,
+    setSavings: setInitialAmount,
+    monthlyContribution,
+    setMonthlyContribution,
+    interestRate: annualRate,
+    setInterestRate: setAnnualRate,
+    years,
+    setYears,
+    syncAllCalculators,
+    autoSyncEnabled
+  } = useFinancialData();
 
   // Projection Logic
   const chartData = useMemo(() => {
@@ -58,9 +67,15 @@ export const WealthSimulatorView: React.FC = () => {
 
         {/* Input Controls */}
         <div className="bg-white border border-gray-200 shadow-sm rounded-lg p-8 flex flex-col gap-6">
-          <h2 className="text-[11px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-100 pb-3 flex items-center gap-2">
-            <Target className="w-4 h-4 text-[#C9A84C]" /> Parâmetros de Simulação
-          </h2>
+          <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+            <h2 className="text-[11px] font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
+              <Target className="w-4 h-4 text-[#C9A84C]" /> Parâmetros de Simulação
+            </h2>
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
+              <Link2 className="w-3 h-3 text-emerald-600" />
+              <span>Sincronizado</span>
+            </div>
+          </div>
 
           <div className="space-y-5">
             <div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Calculator, ShieldCheck, TrendingUp, DollarSign, PieChart as LucidePieChart, Users, Building, Lock, FileText, CheckCircle, ArrowRight, Activity, Layers, Info, Download, Database, Sparkles, Award, Compass, RefreshCw, BarChart3, Sliders, Check, HelpCircle } from 'lucide-react';
+import { Calculator, ShieldCheck, TrendingUp, DollarSign, PieChart as LucidePieChart, Users, Building, Lock, FileText, CheckCircle, ArrowRight, Activity, Layers, Info, Download, Database, Sparkles, Award, Compass, RefreshCw, BarChart3, Sliders, Check, HelpCircle, Link2, RotateCcw } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { trackGranularEvent, trackSimulationCompleted } from '../lib/analytics';
 import { useToolAnalytics } from '../hooks/useToolAnalytics';
@@ -10,6 +10,7 @@ import { safeNumber, calculateSavingsRate, calculateEmergencyFundMonths, calcula
 import { PremiumButton } from './PremiumButton';
 import { GeneratePDFReport, SimulationReportData } from './GeneratePDFReport';
 import { auditLogger } from '../lib/auditLogger';
+import { useFinancialData } from '../context/FinancialDataContext';
 import { 
   INSTITUTIONAL_STRATEGIES, 
   InstitutionalPortfolioStrategy, 
@@ -170,20 +171,54 @@ export const FinanceCalculators: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<'free' | 'premium' | 'enterprise'>('free');
   const [selectedService, setSelectedService] = useState<number>(1);
 
-  // --- TOOL STATES ---
-  const [income, setIncome] = useState<number>(() => loadState('zyc_income', 8500));
-  const [expenses, setExpenses] = useState<number>(() => loadState('zyc_expenses', 5200));
-  const [savings, setSavings] = useState<number>(() => loadState('zyc_savings', 15000));
-  const [monthlyContribution, setMonthlyContribution] = useState<number>(() => loadState('zyc_pmt', 1000));
-  const [interestRate, setInterestRate] = useState<number>(() => loadState('zyc_rate', 10));
-  const [years, setYears] = useState<number>(() => loadState('zyc_years', 10));
-  const [loanAmount, setLoanAmount] = useState<number>(() => loadState('zyc_loan_amt', 250000));
-  const [loanRate, setLoanRate] = useState<number>(() => loadState('zyc_loan_rate', 11.5));
-  const [loanYears, setLoanYears] = useState<number>(() => loadState('zyc_loan_years', 30));
-  const [currentWealth, setCurrentWealth] = useState<number>(() => loadState('zyc_cur_wealth', 50000));
-  const [targetWealth, setTargetWealth] = useState<number>(() => loadState('zyc_tgt_wealth', 1000000));
-  const [wealthContribution, setWealthContribution] = useState<number>(() => loadState('zyc_wealth_pmt', 2500));
-  const [wealthRate, setWealthRate] = useState<number>(() => loadState('zyc_wealth_rate', 9));
+  // --- SHARED FINANCIAL STATE VIA REACT CONTEXT API ---
+  const {
+    income,
+    expenses,
+    savings,
+    monthlyContribution,
+    interestRate,
+    years,
+    loanAmount,
+    loanRate,
+    loanYears,
+    currentWealth,
+    targetWealth,
+    wealthContribution,
+    wealthRate,
+    aiAmount,
+    aiProfile,
+    selectedStrategyId,
+    autoSyncEnabled,
+    freeCashFlow,
+    savingsRate,
+    emergencyReserveTarget,
+    yearsToTarget,
+    remainingMonths,
+    compoundResult,
+    loanPmt: pmt,
+    loanTotalInterest: totalInterest,
+    setIncome,
+    setExpenses,
+    setSavings,
+    setMonthlyContribution,
+    setInterestRate,
+    setYears,
+    setLoanAmount,
+    setLoanRate,
+    setLoanYears,
+    setCurrentWealth,
+    setTargetWealth,
+    setWealthContribution,
+    setWealthRate,
+    setAiAmount,
+    setAiProfile,
+    setSelectedStrategyId,
+    setAutoSyncEnabled,
+    syncAllCalculators,
+    applySurplusToInvestments,
+    resetToDefaults,
+  } = useFinancialData();
 
   // Configurações e Categorias (Mesmo que antes)
   const services = [
@@ -202,10 +237,7 @@ export const FinanceCalculators: React.FC = () => {
   const { trackFieldFill, trackClick, trackCalculation } = useToolAnalytics(activeTool.name);
 
   // IA Alocação & Setup Seletivo Institucional State
-  const [selectedStrategyId, setSelectedStrategyId] = useState<string>('family-office-br');
   const [setupMode, setSetupMode] = useState<'strategies' | 'profiles'>('strategies');
-  const [aiProfile, setAiProfile] = useState<'Conservador' | 'Moderado' | 'Agressivo'>('Moderado');
-  const [aiAmount, setAiAmount] = useState<number>(() => loadState('zyc_ai_amount', 100000));
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState<any>(null);
   const [aiDiagnostic, setAiDiagnostic] = useState<any>(null);
@@ -282,22 +314,6 @@ export const FinanceCalculators: React.FC = () => {
     setAiLoading(false);
   };
 
-  // Persistence Effects
-  useEffect(() => { saveState('zyc_income', income, 'Diagnóstico Financeiro'); }, [income]);
-  useEffect(() => { saveState('zyc_expenses', expenses, 'Diagnóstico Financeiro'); }, [expenses]);
-  useEffect(() => { saveState('zyc_savings', savings, 'Diagnóstico Financeiro'); }, [savings]);
-  useEffect(() => { saveState('zyc_pmt', monthlyContribution, 'Juros Compostos'); }, [monthlyContribution]);
-  useEffect(() => { saveState('zyc_rate', interestRate, 'Juros Compostos'); }, [interestRate]);
-  useEffect(() => { saveState('zyc_years', years, 'Juros Compostos'); }, [years]);
-  useEffect(() => { saveState('zyc_loan_amt', loanAmount, 'Amortização'); }, [loanAmount]);
-  useEffect(() => { saveState('zyc_loan_rate', loanRate, 'Amortização'); }, [loanRate]);
-  useEffect(() => { saveState('zyc_loan_years', loanYears, 'Amortização'); }, [loanYears]);
-  useEffect(() => { saveState('zyc_cur_wealth', currentWealth, 'Independência'); }, [currentWealth]);
-  useEffect(() => { saveState('zyc_tgt_wealth', targetWealth, 'Independência'); }, [targetWealth]);
-  useEffect(() => { saveState('zyc_wealth_pmt', wealthContribution, 'Independência'); }, [wealthContribution]);
-  useEffect(() => { saveState('zyc_wealth_rate', wealthRate, 'Independência'); }, [wealthRate]);
-  useEffect(() => { saveState('zyc_ai_amount', aiAmount, 'Alocacao IA'); }, [aiAmount]);
-
   // Event Listener for external tool selection
   useEffect(() => {
     const handleOpenTool = (e: any) => {
@@ -310,28 +326,6 @@ export const FinanceCalculators: React.FC = () => {
     window.addEventListener('zyc_open_tool', handleOpenTool);
     return () => window.removeEventListener('zyc_open_tool', handleOpenTool);
   }, []);
-
-  // CÁLCULOS SEGUROS
-  const freeCashFlow = income - expenses;
-  const savingsRate = calculateSavingsRate(income, expenses);
-  
-  const monthlyRate = interestRate / 100 / 12;
-  const months = years * 12;
-  const compoundResult = monthlyRate > 0 
-    ? (savings * Math.pow(1 + monthlyRate, months)) + (monthlyContribution * ((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate))
-    : savings + (monthlyContribution * months);
-  
-  const emergencyReserveTarget = expenses * 6;
-  
-  const loanMonthlyRate = loanRate / 100 / 12;
-  const loanMonths = loanYears * 12;
-  const pmt = loanMonthlyRate > 0 
-    ? (loanAmount * loanMonthlyRate * Math.pow(1 + loanMonthlyRate, loanMonths)) / (Math.pow(1 + loanMonthlyRate, loanMonths) - 1)
-    : loanAmount / loanMonths;
-  const totalInterest = safeNumber((pmt * loanMonths) - loanAmount);
-  
-  const yearsToTarget = calculateIndependenceYears(currentWealth, targetWealth, wealthContribution, wealthRate);
-  const remainingMonths = yearsToTarget * 12;
 
   const generateCompoundChartData = () => {
     const data = [];
@@ -533,7 +527,7 @@ export const FinanceCalculators: React.FC = () => {
           <div className="mt-4 text-xs font-bold tracking-widest text-[#1A1F71] uppercase bg-[#1A1F71]/5 inline-block px-4 py-1.5 rounded-full border border-[#1A1F71]/10">Dica: Use Ctrl+S para salvar rapidamente</div>
         </div>
 
-        <div className="flex justify-center mb-10">
+        <div className="flex justify-center mb-6">
           <div className="bg-zinc-100 p-1 rounded-xl inline-flex text-sm font-semibold">
             <button 
               onClick={() => { setActiveCategory('free'); trackClick('Tab - Free Tools'); }}
@@ -546,6 +540,62 @@ export const FinanceCalculators: React.FC = () => {
               className={`px-6 py-2.5 rounded-lg transition-all flex items-center gap-2 ${activeCategory === 'premium' ? 'bg-zinc-900 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-700'}`}
             >
               Premium <Lock className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+
+        {/* CROSS-CALCULATOR SYNCHRONIZATION HUB (REACT CONTEXT API) */}
+        <div className="mb-8 p-4 bg-gradient-to-r from-blue-50/70 via-indigo-50/70 to-emerald-50/70 border border-indigo-100 rounded-2xl shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-[#1A1F71] text-white rounded-xl shadow-xs">
+              <Link2 className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-zinc-800">
+                  Estado Compartilhado (React Context)
+                </span>
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Sincronizado
+                </span>
+              </div>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                Renda, despesas, aportes e patrimônio fluem entre Diagnóstico, Juros Compostos, Reserva, Dívidas e Alocação IA.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {freeCashFlow > 0 && (
+              <button
+                type="button"
+                onClick={applySurplusToInvestments}
+                className="text-xs font-bold text-emerald-800 bg-white hover:bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                title={`Aplica o fluxo livre mensal de ${safeNumber(freeCashFlow).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} nos aportes`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                Aportar Sobra ({safeNumber(freeCashFlow).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })})
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={syncAllCalculators}
+              className="text-xs font-bold text-indigo-900 bg-white hover:bg-indigo-50 border border-indigo-200 px-3 py-2 rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+              title="Sincroniza os dados inseridos em todas as calculadoras"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-indigo-600" />
+              Sincronizar Motores
+            </button>
+
+            <button
+              type="button"
+              onClick={resetToDefaults}
+              className="text-xs font-medium text-zinc-500 hover:text-zinc-800 bg-transparent hover:bg-zinc-100 px-2.5 py-2 rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
+              title="Restaurar valores padrão"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -613,7 +663,7 @@ export const FinanceCalculators: React.FC = () => {
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Renda Mensal (R$)</label>
                       <input type="number" value={income} onChange={(e) => setIncome(Number(e.target.value))} onBlur={() => trackFieldFill('Renda Mensal')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:border-[#1A1F71] focus:ring-1 focus:ring-[#1A1F71] bg-zinc-50 font-mono text-lg" />
@@ -622,20 +672,30 @@ export const FinanceCalculators: React.FC = () => {
                       <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Despesas Mensais (R$)</label>
                       <input type="number" value={expenses} onChange={(e) => setExpenses(Number(e.target.value))} onBlur={() => trackFieldFill('Despesas Mensais')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:border-[#1A1F71] focus:ring-1 focus:ring-[#1A1F71] bg-zinc-50 font-mono text-lg" />
                     </div>
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Reserva Atual (R$)</label>
+                      <input type="number" value={savings} onChange={(e) => setSavings(Number(e.target.value))} onBlur={() => trackFieldFill('Reserva Atual')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:border-[#1A1F71] focus:ring-1 focus:ring-[#1A1F71] bg-zinc-50 font-mono text-lg" />
+                    </div>
                   </div>
 
                   <div className="bg-zinc-950 text-white rounded-2xl p-6 sm:p-8">
-                    <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-6">Fluxo de Caixa Mensal</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                    <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-6">Diagnóstico do Fluxo de Caixa</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                       <div>
-                        <div className="text-3xl font-black">{freeCashFlow >= 0 ? '+' : ''}{safeNumber(freeCashFlow).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
+                        <div className="text-2xl sm:text-3xl font-black">{freeCashFlow >= 0 ? '+' : ''}{safeNumber(freeCashFlow).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
                         <div className="text-xs text-zinc-500 mt-2">Disponível para investir</div>
                       </div>
                       <div>
-                        <div className={`text-3xl font-black ${savingsRate >= 20 ? 'text-emerald-400' : savingsRate > 0 ? 'text-yellow-400' : 'text-red-400'}`}>
+                        <div className={`text-2xl sm:text-3xl font-black ${savingsRate >= 20 ? 'text-emerald-400' : savingsRate > 0 ? 'text-yellow-400' : 'text-red-400'}`}>
                           {safeNumber(savingsRate).toFixed(1)}%
                         </div>
                         <div className="text-xs text-zinc-500 mt-2">Taxa de Poupança (Alvo: &gt; 20%)</div>
+                      </div>
+                      <div>
+                        <div className="text-2xl sm:text-3xl font-black text-blue-400">
+                          {calculateEmergencyFundMonths(savings, expenses).toFixed(1)} <span className="text-base font-normal text-zinc-400">meses</span>
+                        </div>
+                        <div className="text-xs text-zinc-500 mt-2">Cobertura de Reserva (Alvo: 6m)</div>
                       </div>
                     </div>
                   </div>
@@ -774,11 +834,24 @@ export const FinanceCalculators: React.FC = () => {
 
               {selectedService === 5 && (
                 <div className="animate-in fade-in slide-in-from-right-4 duration-500">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="bg-purple-100 p-2 rounded-lg"><LucidePieChart className="w-6 h-6 text-purple-600" /></div>
-                    <h2 className="text-2xl font-black text-zinc-900">Simulador de Patrimônio</h2>
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-purple-100 p-2 rounded-lg"><LucidePieChart className="w-6 h-6 text-purple-600" /></div>
+                      <h2 className="text-2xl font-black text-zinc-900">Independência Financeira (Fator Tempo)</h2>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setTargetWealth(Math.max(100000, expenses * 12 * 25))}
+                      className="text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                      title="Define meta como 300 vezes suas despesas mensais (Regra dos 4%)"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Regra 4%: R$ {Math.round(Math.max(100000, expenses * 12 * 25)).toLocaleString('pt-BR')}
+                    </button>
                   </div>
-                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Patrimônio Atual (R$)</label>
                       <input type="number" value={currentWealth} onChange={(e) => setCurrentWealth(Number(e.target.value))} onBlur={() => trackFieldFill('Patrimônio Atual')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-zinc-50 font-mono text-lg" />
@@ -787,10 +860,34 @@ export const FinanceCalculators: React.FC = () => {
                       <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Meta Patrimonial (R$)</label>
                       <input type="number" value={targetWealth} onChange={(e) => setTargetWealth(Number(e.target.value))} onBlur={() => trackFieldFill('Meta Patrimônio')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-zinc-50 font-mono text-lg" />
                     </div>
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Aporte Mensal (R$)</label>
+                      <input type="number" value={wealthContribution} onChange={(e) => setWealthContribution(Number(e.target.value))} onBlur={() => trackFieldFill('Aporte Independência')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-zinc-50 font-mono text-lg" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Taxa Real Líquida Anual (%)</label>
+                      <input type="number" value={wealthRate} onChange={(e) => setWealthRate(Number(e.target.value))} onBlur={() => trackFieldFill('Taxa Independência')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-zinc-50 font-mono text-lg" />
+                    </div>
                   </div>
-                  <div className="bg-purple-50 border border-purple-200 rounded-2xl p-6 sm:p-8">
-                     <div className="text-sm font-bold uppercase tracking-widest text-purple-800 mb-2">Tempo Restante (Aproximado)</div>
-                     <div className="text-3xl font-black text-purple-900 mb-4">{safeNumber(yearsToTarget).toFixed(1)} Anos</div>
+
+                  <div className="bg-purple-950 text-white rounded-2xl p-6 sm:p-8">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                      <div>
+                        <div className="text-sm font-bold uppercase tracking-widest text-purple-300 mb-2">Tempo Restante</div>
+                        <div className="text-3xl font-black text-white">{safeNumber(yearsToTarget).toFixed(1)} Anos</div>
+                        <div className="text-xs text-purple-300 mt-1">~{Math.round(remainingMonths)} meses de acumulação</div>
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold uppercase tracking-widest text-purple-300 mb-2">Meta Patrimonial</div>
+                        <div className="text-2xl sm:text-3xl font-black text-purple-200">{safeNumber(targetWealth).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })}</div>
+                        <div className="text-xs text-purple-300 mt-1">Capital gerador de renda</div>
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold uppercase tracking-widest text-purple-300 mb-2">Renda Passiva Mensal (4%)</div>
+                        <div className="text-2xl sm:text-3xl font-black text-emerald-400">{safeNumber((targetWealth * 0.04) / 12).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })}</div>
+                        <div className="text-xs text-purple-300 mt-1">Retirada segura perpétua</div>
+                      </div>
+                    </div>
                   </div>
                   <SaveButton toolId="5" name="Independência Financeira" data={{ currentWealth, targetWealth, wealthContribution, wealthRate, yearsToTarget, remainingMonths }} />
                   <EmailCapture toolName="Simulador de Patrimônio" resultData={{ currentWealth, targetWealth, wealthContribution, wealthRate, yearsToTarget, remainingMonths }} />
@@ -990,7 +1087,7 @@ export const FinanceCalculators: React.FC = () => {
                             type="button"
                             onClick={() => {
                               if (btn.add) {
-                                setAiAmount((prev) => prev + btn.val);
+                                setAiAmount(aiAmount + btn.val);
                               } else {
                                 setAiAmount(btn.val);
                               }
