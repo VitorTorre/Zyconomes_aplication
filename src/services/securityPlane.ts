@@ -36,14 +36,8 @@ class SuperAdminSecurityPlaneService {
     if (process.env.NODE_ENV === 'production') {
       throw new Error('FATAL: SUPERADMIN_STEP_UP_SECRET deve estar configurada no ambiente de produção.');
     }
-    if (process.env.NODE_ENV === 'test' || process.env.VITEST === 'true' || process.env.npm_lifecycle_event === 'test') {
-      return 'zyconomes-superadmin-2026';
-    }
-    const globalStore = globalThis as any;
-    if (!globalStore.__zyco_runtime_stepup_secret) {
-      globalStore.__zyco_runtime_stepup_secret = 'dev_step_up_' + Math.random().toString(36).substring(2, 12);
-    }
-    return globalStore.__zyco_runtime_stepup_secret;
+    // Senha canônica para desenvolvimento local, testes e homologação
+    return 'zyconomes-superadmin-2026';
   }
 
   public getActiveStepUpSecretForDevOrTest(): string {

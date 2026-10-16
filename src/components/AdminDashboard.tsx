@@ -24,6 +24,7 @@ import { saveRateLimiter } from '../lib/clientRateLimiter';
 import { auditLogger, AuditEvent, AuditCategory, AuditSeverity } from '../lib/auditLogger';
 import { useBreakpoint } from '../hooks/useBreakpoint';
 import { SuperAdminSecurityPlane } from './SuperAdminSecurityPlane';
+import { MoscMatrixViewer } from './MoscMatrixViewer';
 
 const RateLimitWidget: React.FC = () => {
   const [stats, setStats] = useState(saveRateLimiter.getStats());
@@ -242,7 +243,7 @@ export const AdminDashboard: React.FC = () => {
     interacoes: Math.floor(Math.random() * 350) + 40,
   }));
 
-  const [mode, setMode] = useState<'admin' | 'security' | 'b2b'>('admin');
+  const [mode, setMode] = useState<'admin' | 'security' | 'mosc' | 'b2b'>('admin');
 
   return (
     <motion.div 
@@ -255,6 +256,8 @@ export const AdminDashboard: React.FC = () => {
           <div className="p-3 bg-[#1A1F71]/10 rounded-xl">
             {mode === 'security' ? (
               <Shield className="w-6 h-6 text-[#1A1F71]" />
+            ) : mode === 'mosc' ? (
+              <Command className="w-6 h-6 text-[#1A1F71]" />
             ) : (
               <Server className="w-6 h-6 text-[#1A1F71]" />
             )}
@@ -265,6 +268,8 @@ export const AdminDashboard: React.FC = () => {
                 ? 'Admin Console'
                 : mode === 'security'
                 ? 'Super Admin (Security Plane)'
+                : mode === 'mosc'
+                ? 'Matriz Operacional Coordenativa (MOSC-ZYC)'
                 : 'Consultant Dashboard (B2B)'}
             </h1>
             <p className="text-zinc-500 dark:text-zinc-400">
@@ -272,6 +277,8 @@ export const AdminDashboard: React.FC = () => {
                 ? 'Monitoramento em Tempo Real & Concorrência'
                 : mode === 'security'
                 ? 'Arquitetura de Segurança, Firewall Comportamental & Contenção'
+                : mode === 'mosc'
+                ? 'Quem Pode Fazer o Quê, Sob Qual Evidência e Nível de Autorização'
                 : 'Visão Geral das Carteiras de Clientes'}
             </p>
           </div>
@@ -298,6 +305,17 @@ export const AdminDashboard: React.FC = () => {
           >
             <Shield className="w-3.5 h-3.5" />
             <span>Super Admin (Security Plane)</span>
+          </button>
+          <button
+            onClick={() => setMode('mosc')}
+            className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer ${
+              mode === 'mosc'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700'
+            }`}
+          >
+            <Command className="w-3.5 h-3.5" />
+            <span>MOSC-ZYC</span>
           </button>
           <button
             onClick={() => setMode('b2b')}
@@ -628,6 +646,8 @@ export const AdminDashboard: React.FC = () => {
         </>
       ) : mode === 'security' ? (
         <SuperAdminSecurityPlane />
+      ) : mode === 'mosc' ? (
+        <MoscMatrixViewer />
       ) : (
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm p-8 text-center animate-in fade-in zoom-in-95">
           <div className="w-16 h-16 bg-[#1A1F71]/10 rounded-full flex items-center justify-center mx-auto mb-6">

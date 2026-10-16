@@ -71,12 +71,23 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   ],
 };
 
+import { isAuthorizedAdminIdentity } from './timeAccessControl.ts';
+
 /**
  * Server-Authoritative Role Resolution.
  * Derives role strictly from verified backend user data and claims — never client inputs.
+ * Strictly prevents lateral privilege escalation by enforcing administrative email whitelist.
  */
 export function resolveUserRole(req: AuthRequest): UserRole {
   if (!req.dbUser) return 'USER';
+
+  const email = req.dbUser.email || req.user?.email;
+  const isWhitelisted = isAuthorizedAdminIdentity(email);
+
+  // If identity is not whitelisted for administrative roles, enforce strict USER confinement
+  if (!isWhitelisted) {
+    return 'USER';
+  }
 
   // Check explicit database role column if present
   if (req.dbUser.role) {
@@ -86,18 +97,18 @@ export function resolveUserRole(req: AuthRequest): UserRole {
     if (r === 'ADMIN') return 'ADMIN';
   }
 
-  // Check user tier mapping
-  if (req.dbUser.tier === 'admin') {
-    return 'ADMIN';
-  }
-
   // Check for elevated security admin token
   const elevatedToken = req.headers['x-superadmin-token'] as string;
   if (elevatedToken && elevatedToken.startsWith('elevated_')) {
     return 'SUPER_ADMIN';
   }
 
-  return 'USER';
+  // Check user tier mapping
+  if (req.dbUser.tier === 'admin') {
+    return 'ADMIN';
+  }
+
+  return 'ADMIN'; // Default for authorized administrative whitelist
 }
 
 /**

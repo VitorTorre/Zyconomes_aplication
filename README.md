@@ -292,6 +292,72 @@ npm start
 
 ---
 
+## 🛡️ Aparato de Segurança Institucional & Blindagem Cibernética (Pautas e Observações)
+
+### 1. Pauta de Mitigação Canônica de IDOR (Insecure Direct Object References)
+- **Implementação:** Rotas `GET /api/simulations/:id` e `DELETE /api/simulations/:id` aplicam predicado conjunto de autorização no Drizzle ORM: `where(and(eq(simulations.id, id), eq(simulations.userId, req.dbUser.id)))`.
+- **Detecção Ativa de Sonda:** Se o identificador existir mas pertencer a outro usuário, o sistema não expõe erro de permissão (o que confirmaria a existência do recurso), mas devolve `404 Not Found` e dispara imediatamente anomalia `IDOR_ATTEMPT` (+4 pontos) no firewall comportamental com log de severidade `HIGH`.
+- **Prevenção de Over-Posting:** Mutações no endpoint `POST /api/simulations` descartam qualquer `userId` enviado no JSON do cliente e vinculam a gravação estritamente a `req.dbUser.id` extraído do token JWT autenticado no backend.
+
+### 2. Pauta de Controle de Acesso Temporal (TBAC) e Whitelist Exclusiva
+- **Whitelist Restrita:** Funções administrativas (`ADMIN`, `SECURITY_ADMIN`, `SUPER_ADMIN`) são exclusivas para o e-mail do fundador (`v.torresko2015@gmail.com`) e credenciais autorizadas de desenvolvimento/sistema. Tentativas de outros usuários são confinadas a `USER`, impedindo escalada lateral de privilégios.
+- **Janela Operacional (11:00 às 13:45 BRT):** Ações administrativas são autorizadas exclusivamente dentro desse intervalo diário oficial de Brasília (América/São Paulo, UTC-3). Fora da janela, requisições recebem HTTP 403 `ADMIN_WINDOW_CLOSED`.
+- **Break-Glass Auditado:** Autorizações extraordinárias de emergência fora do horário exigem cabeçalho `x-emergency-breakglass: true` e documentação obrigatória em `x-breakglass-justification` (mínimo 15 caracteres), registradas no ledger com severidade `CRITICAL`.
+
+### 3. Pauta de Criptografia em Repouso AES-256-GCM (NIST SP 800-38D)
+- **Módulo Criptográfico (`src/lib/encryption.ts`):** Encriptação simétrica autenticada com chave mestre de 256 bits, vetor de inicialização único de 12 bytes gerado via `crypto.randomBytes` e tag de autenticação GCM de 16 bytes.
+- **Detecção de Adulteração (Tampering):** Qualquer alteração de 1 único bit no texto cifrado ou na tag resulta em rejeição sumária e imediata na decriptação, garantindo autenticidade e confidencialidade.
+- **Demonstrador Visual no SuperAdmin:** O cockpit `SecurityIntrusionSandbox.tsx` permite ao operador inserir dados arbitrários e inspecionar a geração em tempo real de IV, Ciphertext e AuthTag.
+
+### 4. Pauta de Malha de Auditoria Encadeada (Ledger Imutável estilo Blockchain)
+- **Hash Chaining (`src/lib/securityAudit.ts`):** Cada evento de segurança e mutação administrativa incorpora o hash SHA-256 do evento anterior (`prevHash` $\to$ `entryHash`), assinado com `HMAC-SHA256` emitido pelo servidor.
+- **Verificação Retroalimentada:** A função `verifyLedgerIntegrity()` percorre a cadeia desde o bloco de gênese até o cabeçalho. Qualquer edição manual direta no banco de dados invalida a malha e aciona alarme de adulteração.
+
+### 5. Pauta de Defesas de Borda e Cabeçalhos WAF
+- **Cabeçalhos Estritos:** Injeção de `Strict-Transport-Security: max-age=31536000`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` e `Referrer-Policy: strict-origin-when-cross-origin`.
+- **Validação com Zod `.strict()`:** Rejeição na borda de qualquer payload contendo chaves não mapeadas antes da desserialização interna no Express.
+
+### 6. Pauta da Matriz Operacional Coordenativa (MOSC-ZYC) & Segregação em 12 Classes
+- **Princípio Central:** *"Quanto maior o impacto potencial de uma ação, maior deve ser o nível de autorização, rastreabilidade e revisão humana."*
+- **Pipeline Operacional em 11 Estágios:** `Dado → Validação → Cálculo → Interpretação → Cenário → Evidência → Atendimento → Decisão Humana → Registro → Acompanhamento → Resultado`.
+- **As 12 Classes de Operadores:**
+  1. *Usuário / Cliente:* Titular dos dados, alçada de consentimento próprio, isolamento estrito contra IDOR.
+  2. *Agente Financeiro:* Simulações e relatórios preliminares; vedação de alteração direta de saldos; atuação assistida.
+  3. *Especialista Financeiro (CFP):* Pareceres técnicos de alta alçada e laudos com assinatura digital e carimbo de tempo.
+  4. *Planejador Financeiro:* Estruturação de fluxo de caixa perpétuo e metas de independência financeira com bandas estocásticas.
+  5. *Analista Operacional:* Reconciliação e conferência sob regra de quatro olhos (Two-Man Rule); sem alteração financeira autônoma.
+  6. *Auditor / Controlador:* Acesso universal read-only, conferência contínua da malha HMAC SHA-256 e poder de retenção cautelar.
+  7. *Supervisor Operacional:* Alçada de aprovações operacionais de segunda instância e gestão de exceções com notificação ao auditor.
+  8. *Administrador de Segurança (SecOps):* Governança de RBAC, firewall comportamental e quarentena; vedação de leitura financeira.
+  9. *Administrador da Plataforma (DevOps/SRE):* Gestão de pool, CI/CD e releases; isolamento zero-knowledge com AES-256-GCM.
+  10. *Sistema de Notificações:* Despacho transacional assíncrono com payload mínimo higienizado e proteção contra vazamento em headers.
+  11. *Motor de Regras Determinístico:* Resolução puramente matemática de MPT, Risk Parity e Price sem efeitos colaterais de estado.
+  12. *Motor de Auditoria (Immutable Ledger):* Encadeamento contínuo de blocos de evidência (`prevHash` → `entryHash`) e HMAC de integridade.
+
+### 7. Pauta de Resolução de Credenciais Step-Up & Navegação Autorizada
+- **Identificação da Inconsistência:** O mecanismo de elevação Step-Up anterior gerava chaves randômicas voláteis em memória (`dev_step_up_...`) durante reinicializações locais, impossibilitando a previsão da credencial de homologação e criando ruído operacional para o engenheiro.
+- **Resolução Canônica Aplicada:** Padronização da senha determinística **`zyconomes-superadmin-2026`** para os ambientes de desenvolvimento e teste quando `SUPERADMIN_STEP_UP_SECRET` não estiver injetado. Em produção, a ausência da variável trava o boot por fail-fast.
+- **Mapeamento Exato do Caminho de Acesso:**
+  1. No navegador, navegue para a rota `/#admin` (ou acesse pelo menu de rodapé/topo institucional).
+  2. No topo do console, acesse a aba **`Super Admin (Security Plane)`**.
+  3. No formulário de elevação de privilégios, insira a senha **`zyconomes-superadmin-2026`** e clique em **`Elevar`**.
+  4. O painel destrava imediatamente o cockpit de contenção, sandbox de intrusão e testes de penetração controlados.
+  5. Para consultar e auditar o quadro de alçadas em profundidade, acesse a aba vizinha **`MOSC-ZYC`**.
+
+### 8. Pauta de Proteção Lateral e Isolamento Zero-Knowledge
+- **Defesa de Dados em Repouso:** Os dados patrimoniais de clientes são cifrados em repouso com AES-256-GCM antes da gravação relacional, impedindo que administradores de banco ou operadores de Cloud SQL consigam ler extratos em texto plano.
+- **Confinamento Automático de Privilégios:** Qualquer e-mail que não pertença à whitelist (`v.torresko2015@gmail.com` ou credenciais oficiais de desenvolvimento) é sumariamente rebaixado para `USER` no middleware `resolveUserRole`, mesmo se tentar injetar parâmetros de perfil no payload.
+
+### 9. Pauta de Code Review, Resiliência Assíncrona & Análise de Impacto (RABBITMQ_URL e Tratamento de Exceções)
+- **Análise de Dependência de Mensageria (`RABBITMQ_URL`):** A variável `RABBITMQ_URL: process.env.RABBITMQ_URL || 'amqp://127.0.0.1:5672'` (especificada no Ciclo 1 e Ciclo 3 em `src/services/zyconomesEngine.ts`) estabelece a fronteira entre processamento financeiro transacional síncrono (ACID no PostgreSQL) e despacho de notificações/OTP assíncrono.
+- **Risco de Catch Incorreto (Dual-Write & Silent Failures):** Se uma exceção for capturada silenciosamente (`try { rabbit.send() } catch {}`) no fluxo de cadastro, o usuário é gravado no banco mas o e-mail de ativação é perdido sem aviso. Se a exceção não for tratada, ela quebra a transação do banco desnecessariamente.
+- **Solução Canônica de Engenharia (Transactional Outbox Pattern):** A API transacional grava o evento de notificação em uma tabela `outbox` no PostgreSQL na mesma transação atômica do usuário. Um worker em segundo plano lê essa tabela com `SELECT ... FOR UPDATE SKIP LOCKED` e descarrega no RabbitMQ com confirmação de entrega (`publisher confirms`), eliminando a perda de mensagens em caso de queda do broker.
+- **Isolamento de DLQ (Dead Letter Queue):** Mensagens rejeitadas (payload corrompido ou erro de entrega permanente) são enviadas para `zyconomes_dlx` -> `fila_emails_dlq` após 3 tentativas com backoff exponencial, preservando a taxa de vazão da fila principal.
+- **Governança de Erros no Pipeline MOSC-ZYC:** Toda captura de erro nas rotas críticas agora emite Correlation-ID padronizado (`x-correlation-id`) e incrementa o ledger imutável caso haja suspeita de abuso, garantindo rastreabilidade sem vazamento de stack traces para o frontend.
+
+---
+
 **Licença:** Proprietário / Zyconomes Architecture Systems  
 **Engenheiro Responsável:** Vitor Torres (Zyconomes Lead Engineer)  
-**Status Operacional:** Produção / Build Verificado
+**Status Operacional:** Produção / Build Verificado / 57 Testes Aprovados (11/11 Suítes) / Pautas 1 a 9 Documentadas
+

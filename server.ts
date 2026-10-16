@@ -6,7 +6,7 @@ import { requireRole, requirePermission, resolveUserRole } from './src/middlewar
 import { applyRateLimit } from './src/lib/RateLimiter.ts';
 import { db } from './src/db/index.ts';
 import { simulations, users, feedbacks, events } from './src/db/schema.ts';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import Stripe from 'stripe';
 import { sanitizeRequestInputs, validateSchema, Schemas } from './src/middleware/securityGateway.ts';
 import { behavioralFirewallMiddleware, behavioralFirewall } from './src/middleware/behavioralFirewall.ts';
@@ -15,6 +15,8 @@ import { releaseManager } from './src/lib/releaseManager.ts';
 import { securityPlaneService } from './src/services/securityPlane.ts';
 import { logSecurityEvent, getSecurityLogs, verifyLedgerIntegrity } from './src/lib/securityAudit.ts';
 import { getStrategyByRiskProfile, calculatePortfolioAllocation } from './src/lib/institutionalStrategies.ts';
+import { enforceAdminTimeWindow, checkAdminTimeWindow } from './src/middleware/timeAccessControl.ts';
+import { encryptField, decryptField, simulateEncryptionDemo } from './src/lib/encryption.ts';
 
 let stripeClient: Stripe | null = null;
 function getStripe(): Stripe {
@@ -130,6 +132,14 @@ async function startServer() {
   // CAMADA 1 — Input & Action Security Gateway (Global)
   // HTTP -> JSON Parser (100kb limit) -> Deep Sanitization -> Behavioral Firewall
   // ==============================================================================
+  app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    next();
+  });
+
   app.use(express.json({ limit: '100kb' }));
   app.use(sanitizeRequestInputs);
   app.use(behavioralFirewallMiddleware);
@@ -137,6 +147,9 @@ async function startServer() {
   // ==============================================================================
   // PUBLIC & DIAGNOSTIC ENDPOINTS
   // ==============================================================================
+  app.get('/api/security/time-window', requireAuth, (req: AuthRequest, res) => {
+    res.json(checkAdminTimeWindow());
+  });
   app.get('/api/health', (req, res) => {
     res.json({
       status: 'ok',
@@ -175,6 +188,7 @@ async function startServer() {
     '/api/security/superadmin/telemetry',
     requireAuth,
     requireRole('SECURITY_ADMIN'),
+    enforceAdminTimeWindow,
     applyRateLimit({ windowMs: 10000, maxRequests: 20, actionName: 'TELEMETRY_READ' }),
     async (req: AuthRequest, res) => {
       try {
@@ -182,6 +196,7 @@ async function startServer() {
         res.json({
           ...telemetry,
           releases: releaseManager.getReleases(),
+          timeWindowStatus: checkAdminTimeWindow(),
         });
       } catch (err: any) {
         console.error('Superadmin telemetry error:', err);
@@ -216,6 +231,7 @@ async function startServer() {
     '/api/security/superadmin/quarantine/release',
     requireAuth,
     requireRole('SECURITY_ADMIN'),
+    enforceAdminTimeWindow,
     validateSchema(Schemas.quarantineRelease),
     async (req: AuthRequest, res) => {
       try {
@@ -235,6 +251,7 @@ async function startServer() {
     '/api/security/superadmin/circuit-breaker/toggle',
     requireAuth,
     requireRole('SECURITY_ADMIN'),
+    enforceAdminTimeWindow,
     validateSchema(Schemas.circuitToggle),
     async (req: AuthRequest, res) => {
       try {
@@ -260,6 +277,7 @@ async function startServer() {
     '/api/security/superadmin/releases',
     requireAuth,
     requireRole('SECURITY_ADMIN'),
+    enforceAdminTimeWindow,
     (req: AuthRequest, res) => {
       res.json(releaseManager.getReleases());
     }
@@ -269,6 +287,7 @@ async function startServer() {
     '/api/security/superadmin/rollback/trigger',
     requireAuth,
     requireRole('SECURITY_ADMIN'),
+    enforceAdminTimeWindow,
     validateSchema(Schemas.rollbackTrigger),
     (req: AuthRequest, res) => {
       try {
@@ -286,6 +305,7 @@ async function startServer() {
     '/api/security/superadmin/rollback/restore',
     requireAuth,
     requireRole('SUPER_ADMIN'),
+    enforceAdminTimeWindow,
     (req: AuthRequest, res) => {
       try {
         const actor = req.dbUser?.email || `super_admin_${req.dbUser?.id}`;
@@ -293,6 +313,93 @@ async function startServer() {
         res.json(result);
       } catch (err: any) {
         res.status(500).json({ error: 'Falha ao restaurar release principal', details: err.message });
+      }
+    }
+  );
+
+  // AES-256-GCM Live Demonstration Endpoint for SuperAdmin
+  app.post(
+    '/api/security/encryption/demo',
+    requireAuth,
+    requireRole('ADMIN'),
+    (req: AuthRequest, res) => {
+      try {
+        const { text } = req.body;
+        const result = simulateEncryptionDemo(text);
+        res.json(result);
+      } catch (err: any) {
+        res.status(500).json({ error: 'Falha na demonstração criptográfica' });
+      }
+    }
+  );
+
+  // Controlled Penetration Testing / IDOR Simulation Endpoint
+  app.post(
+    '/api/security/penetration-test/run',
+    requireAuth,
+    requireRole('ADMIN'),
+    async (req: AuthRequest, res) => {
+      try {
+        const { scenario } = req.body;
+        const actor = req.dbUser?.email || `admin_${req.dbUser?.id}`;
+        const ip = req.ip || '127.0.0.1';
+
+        switch (scenario) {
+          case 'IDOR_TAMPER_SIMULATION': {
+            // Simulates an attack attempting to read cross-tenant simulation ID 9999
+            const clientKey = behavioralFirewall.extractClientKey(req);
+            const anomaly = behavioralFirewall.recordAnomaly(
+              clientKey,
+              'IDOR_ATTEMPT',
+              4,
+              { targetId: 9999, attackerId: req.dbUser?.id, simulated: true },
+              req
+            );
+            const event = logSecurityEvent({
+              category: 'IDOR_ATTEMPT',
+              severity: 'HIGH',
+              action: 'SIMULATED_IDOR_TAMPER_BLOCKED',
+              actor,
+              ip,
+              details: { scenario, result: 'BLOCKED_404_ISOLATED', targetId: 9999 },
+            });
+            return res.json({
+              success: true,
+              scenario,
+              status: 'BLOCKED',
+              quarantined: anomaly.quarantined,
+              anomalyScore: anomaly.score,
+              loggedEvent: event,
+            });
+          }
+          case 'TIME_WINDOW_TEST': {
+            const timeStatus = checkAdminTimeWindow();
+            return res.json({
+              success: true,
+              scenario,
+              timeStatus,
+              message: timeStatus.isAllowed
+                ? 'Janela operacional aberta (11:00 às 13:45 BRT).'
+                : 'Acesso bloqueado por TBAC fora da janela (11:00 às 13:45 BRT).',
+            });
+          }
+          case 'ZOD_STRICT_PROBE': {
+            const schema = Schemas.clientDiagnosticEvent;
+            const maliciousPayload = { action: 'TEST_PROBE', extra_unmapped_field: 'malicious_inject' };
+            const validation = schema.safeParse(maliciousPayload);
+            return res.json({
+              success: true,
+              scenario,
+              passedValidation: validation.success,
+              droppedKeys: !validation.success ? validation.error.format() : 'none',
+              message: !validation.success ? 'Schema .strict() rejeitou campos não mapeados com sucesso.' : 'Payload validado.',
+            });
+          }
+          default:
+            return res.status(400).json({ error: 'Cenário de teste desconhecido' });
+        }
+      } catch (err: any) {
+        res.status(500).json({ error: 'Falha ao executar teste de penetração' });
       }
     }
   );
@@ -486,6 +593,94 @@ async function startServer() {
     }
   );
 
+  app.get('/api/simulations/:id', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      if (!req.dbUser) return res.status(401).json({ error: 'User not synced' });
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+
+      // IDOR Mitigation: strict ownership filter combining simulation id and authenticated userId
+      const [userSimulation] = await db.select().from(simulations).where(and(eq(simulations.id, id), eq(simulations.userId, req.dbUser.id)));
+
+      if (!userSimulation) {
+        // Lateral check: does this resource belong to another tenant?
+        const [alienSimulation] = await db.select().from(simulations).where(eq(simulations.id, id));
+        if (alienSimulation) {
+          const clientKey = behavioralFirewall.extractClientKey(req);
+          behavioralFirewall.recordAnomaly(
+            clientKey,
+            'IDOR_ATTEMPT',
+            4,
+            { targetSimulationId: id, attemptedByUserId: req.dbUser.id },
+            req
+          );
+          logSecurityEvent({
+            category: 'IDOR_ATTEMPT',
+            severity: 'HIGH',
+            action: 'IDOR_SIMULATION_READ_BLOCKED',
+            actor: req.dbUser.email || clientKey,
+            ip: req.ip || '127.0.0.1',
+            details: { targetSimulationId: id, ownerUserId: alienSimulation.userId, attackerUserId: req.dbUser.id },
+          });
+        }
+        return res.status(404).json({ error: 'Simulação não encontrada' });
+      }
+
+      res.json(userSimulation);
+    } catch (error: any) {
+      console.error('Failed to fetch simulation by id:', error);
+      res.status(500).json({ error: 'Failed to fetch simulation' });
+    }
+  });
+
+  app.delete('/api/simulations/:id', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      if (!req.dbUser) return res.status(401).json({ error: 'User not synced' });
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+
+      // IDOR Mitigation: delete only if id and userId match
+      const [deleted] = await db.delete(simulations).where(and(eq(simulations.id, id), eq(simulations.userId, req.dbUser.id))).returning();
+
+      if (!deleted) {
+        const [alienSimulation] = await db.select().from(simulations).where(eq(simulations.id, id));
+        if (alienSimulation) {
+          const clientKey = behavioralFirewall.extractClientKey(req);
+          behavioralFirewall.recordAnomaly(
+            clientKey,
+            'IDOR_ATTEMPT',
+            4,
+            { targetSimulationId: id, attemptedByUserId: req.dbUser.id },
+            req
+          );
+          logSecurityEvent({
+            category: 'IDOR_ATTEMPT',
+            severity: 'HIGH',
+            action: 'IDOR_SIMULATION_DELETE_BLOCKED',
+            actor: req.dbUser.email || clientKey,
+            ip: req.ip || '127.0.0.1',
+            details: { targetSimulationId: id, ownerUserId: alienSimulation.userId, attackerUserId: req.dbUser.id },
+          });
+        }
+        return res.status(404).json({ error: 'Simulação não encontrada' });
+      }
+
+      logSecurityEvent({
+        category: 'AUTHORIZED_MUTATION',
+        severity: 'LOW',
+        action: 'SIMULATION_DELETED',
+        actor: req.dbUser.email,
+        ip: req.ip || '127.0.0.1',
+        details: { userId: req.dbUser.id, simulationId: id },
+      });
+
+      res.json({ success: true, deletedId: id });
+    } catch (error: any) {
+      console.error('Failed to delete simulation:', error);
+      res.status(500).json({ error: 'Failed to delete simulation' });
+    }
+  });
+
   // ==============================================================================
   // FEEDBACK & EVENTS ENDPOINTS
   // ==============================================================================
@@ -584,6 +779,7 @@ async function startServer() {
     '/api/audit/logs',
     requireAuth,
     requireRole('ADMIN'),
+    enforceAdminTimeWindow,
     (req: AuthRequest, res) => {
       const logs = getSecurityLogs(200);
       const integrity = verifyLedgerIntegrity();
@@ -602,6 +798,7 @@ async function startServer() {
     '/api/admin/stats',
     requireAuth,
     requireRole('ADMIN'),
+    enforceAdminTimeWindow,
     async (req: AuthRequest, res) => {
       try {
         res.json({

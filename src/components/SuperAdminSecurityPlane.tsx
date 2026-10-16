@@ -21,6 +21,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { SecurityIntrusionSandbox } from './SecurityIntrusionSandbox';
 
 interface SubsystemHealth {
   name: string;
@@ -284,22 +285,35 @@ export const SuperAdminSecurityPlane: React.FC = () => {
           </div>
 
           {!isElevated ? (
-            <form onSubmit={handleStepUpSubmit} className="flex items-center gap-2">
-              <input
-                type="password"
-                value={stepUpPassword}
-                onChange={e => setStepUpPassword(e.target.value)}
-                placeholder="Senha de elevação..."
-                className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-[#1A1F71] w-36 sm:w-44"
-              />
-              <button
-                type="submit"
-                disabled={stepUpLoading || !stepUpPassword}
-                className="bg-[#1A1F71] hover:bg-[#15195c] disabled:opacity-50 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
-              >
-                {stepUpLoading ? '...' : 'Elevar'}
-              </button>
-            </form>
+            <div className="flex flex-col items-end gap-1">
+              <form onSubmit={handleStepUpSubmit} className="flex items-center gap-2">
+                <input
+                  type="password"
+                  value={stepUpPassword}
+                  onChange={e => setStepUpPassword(e.target.value)}
+                  placeholder="Senha de elevação..."
+                  className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-[#1A1F71] w-36 sm:w-44"
+                />
+                <button
+                  type="submit"
+                  disabled={stepUpLoading || !stepUpPassword}
+                  className="bg-[#1A1F71] hover:bg-[#15195c] disabled:opacity-50 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                >
+                  {stepUpLoading ? '...' : 'Elevar'}
+                </button>
+              </form>
+              <div className="text-[10px] text-zinc-500 font-mono flex items-center gap-1">
+                <span>Dev/Test key:</span>
+                <button
+                  type="button"
+                  onClick={() => setStepUpPassword('zyconomes-superadmin-2026')}
+                  className="text-emerald-400 hover:underline cursor-pointer"
+                  title="Clique para preencher a senha canônica de dev"
+                >
+                  zyconomes-superadmin-2026
+                </button>
+              </div>
+            </div>
           ) : (
             <button
               onClick={() => setIsElevated(false)}
@@ -570,6 +584,9 @@ export const SuperAdminSecurityPlane: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* APARATO DE SEGURANÇA: COCKPIT DE TESTES DE PENETRAÇÃO, TBAC & CRIPTOGRAFIA AES-256 */}
+      <SecurityIntrusionSandbox />
 
       {/* SECURITY LOGS STREAM WITH SERVER HMAC SIGNATURES */}
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 shadow-sm">
