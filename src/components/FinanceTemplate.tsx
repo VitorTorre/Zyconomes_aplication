@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, X, ArrowRight, Activity, Code2, UserCircle, ChevronDown, Calculator, ShieldCheck, TrendingUp, PieChart, BookOpen, Layers, Shield, Search, WifiOff, Sun, Moon } from 'lucide-react';
+import { Menu, X, ArrowRight, Activity, Code2, UserCircle, ChevronDown, Calculator, ShieldCheck, TrendingUp, PieChart, BookOpen, Layers, Shield, Search, WifiOff, Sun, Moon, Bot, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { FinanceCalculators } from './FinanceCalculators';
+import { InteractiveCockpitBanner } from './InteractiveCockpitBanner';
 import { ZyconomesExecutiveManifesto } from './ZyconomesExecutiveManifesto';
 import { ZyconomesSystemDesign } from './ZyconomesSystemDesign';
 import { ZyconomesArchitectureSVG } from './ZyconomesArchitectureSVG';
@@ -198,6 +199,9 @@ export const FinanceTemplate: React.FC = () => {
               </button>
               <div className="absolute top-full left-1/2 -translate-x-1/2 mt-0 w-64 bg-white border border-zinc-200 rounded-2xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all p-3 grid grid-cols-1 gap-1 z-50">
                 <div className="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-2 px-3 pt-2">Gratuitas</div>
+                <button onClick={() => openTool(7)} className="flex items-center gap-3 px-3 py-2 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl text-left w-full">
+                  <Bot className="w-4 h-4 text-emerald-600" /> <span className="text-emerald-900 dark:text-emerald-300 font-bold">Agente IA (15 Anos)</span>
+                </button>
                 <button onClick={() => openTool(1)} className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 rounded-xl text-left w-full">
                   <Activity className="w-4 h-4 text-[#1A1F71]" /> <span className="text-zinc-700 font-semibold">Diagnóstico Financeiro</span>
                 </button>
@@ -208,7 +212,7 @@ export const FinanceTemplate: React.FC = () => {
                   <ShieldCheck className="w-4 h-4 text-emerald-600" /> <span className="text-zinc-700 font-semibold">Reserva de Emergência</span>
                 </button>
                 <button onClick={() => openTool(4)} className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 rounded-xl text-left w-full">
-                  <Calculator className="w-4 h-4 text-red-600" /> <span className="text-zinc-700 font-semibold">Amortização (Price)</span>
+                  <Calculator className="w-4 h-4 text-red-600" /> <span className="text-zinc-700 font-semibold">Acelerador de Dívidas (SAC)</span>
                 </button>
                 <button onClick={() => openTool(5)} className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 rounded-xl text-left w-full">
                   <PieChart className="w-4 h-4 text-purple-600" /> <span className="text-zinc-700 font-semibold">Independência (Tempo)</span>
@@ -400,6 +404,9 @@ export const FinanceTemplate: React.FC = () => {
                       </p>
                       
                       <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+                        <button onClick={() => scrollToSection('cockpit')} className="w-full sm:w-auto bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white px-8 py-4 rounded-full font-bold text-lg shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer">
+                          Cockpit Agente IA (15 Anos) <Sparkles className="w-5 h-5 text-emerald-200" />
+                        </button>
                         <button onClick={() => scrollToSection('ferramentas')} className="w-full sm:w-auto bg-[#1A1F71] hover:bg-[#121652] text-white px-8 py-4 rounded-full font-bold text-lg shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2">
                           Iniciar Diagnóstico <ArrowRight className="w-5 h-5" />
                         </button>
@@ -411,6 +418,13 @@ export const FinanceTemplate: React.FC = () => {
                       <div className="mt-10 text-xs text-zinc-400 font-medium tracking-wide">
                         * Cálculos matemáticos executados com precisão. Segurança Cloud SQL e Firebase Auth.
                       </div>
+                    </div>
+                  </section>
+
+                  {/* COCKPIT INTERATIVO MULTI-CICLOS (AGENTE IA 15 ANOS) */}
+                  <section id="cockpit" className="py-12 bg-zinc-900 border-b border-zinc-800 scroll-mt-20">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                      <InteractiveCockpitBanner onOpenFullCockpit={() => openTool(7)} />
                     </div>
                   </section>
 

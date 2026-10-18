@@ -1,6 +1,6 @@
 {
-  "summary": "Plano de implementação detalhado para a blindagem do aparato de segurança inicial do Zyconomes: mitigação rigorosa de IDOR em rotas, Time-Based Access Control (janela 11:00-13:45) exclusivo para v.torresko2015@gmail.com e desenvolvedor, WAF com cabeçalhos de segurança estritos, criptografia AES-256-GCM para dados sensíveis em repouso, e painel interativo de simulação de intrusão e testes de penetração no SuperAdmin.",
-  "updatedAt": "2026-10-15T20:00:53.209225854Z",
+  "summary": "Plano de implementação da arquitetura do Agente de IA Financeiro Pessoal (inspirado no Agent-S) com cockpit interativo de ciclos de mercado, motor de projeção estocástica com progressão de aporte trimestral (+R$ 150 a +R$ 2.000), regra fiduciária de divisão de proventos (20% pessoal, 25% negócios nichados, 40% ações/multimercados, 15% reserva de liquidez), marcos de 5x a 8x no médio prazo e dolarização patrimonial para atingir USD 2.000/semana em 10-15 anos.",
+  "updatedAt": "2026-10-17T22:13:14.493423498Z",
   "requestFeedback": true,
   "userFacing": true
 }

@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Calculator, ShieldCheck, TrendingUp, DollarSign, PieChart as LucidePieChart, Users, Building, Lock, FileText, CheckCircle, ArrowRight, Activity, Layers, Info, Download, Database, Sparkles, Award, Compass, RefreshCw, BarChart3, Sliders, Check, HelpCircle, Link2, RotateCcw } from 'lucide-react';
+import { Calculator, ShieldCheck, TrendingUp, DollarSign, PieChart as LucidePieChart, Users, Building, Lock, FileText, CheckCircle, ArrowRight, Activity, Layers, Info, Download, Database, Sparkles, Award, Compass, RefreshCw, BarChart3, Sliders, Check, HelpCircle, Link2, RotateCcw, Bot } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { trackGranularEvent, trackSimulationCompleted } from '../lib/analytics';
 import { useToolAnalytics } from '../hooks/useToolAnalytics';
 import { EmailCapture } from './EmailCapture';
 import { ShareButtons } from './ZyconomesWidgets';
+import { PersonalAgentCockpit } from './PersonalAgentCockpit';
 import { saveRateLimiter } from '../lib/clientRateLimiter';
 import { safeNumber, calculateSavingsRate, calculateEmergencyFundMonths, calculateIndependenceYears } from '../lib/financeMath';
 import { PremiumButton } from './PremiumButton';
 import { GeneratePDFReport, SimulationReportData } from './GeneratePDFReport';
+import { DebtPayoffAccelerator } from './DebtPayoffAccelerator';
 import { auditLogger } from '../lib/auditLogger';
 import { useFinancialData } from '../context/FinancialDataContext';
 import { 
@@ -225,11 +227,12 @@ export const FinanceCalculators: React.FC = () => {
     { id: 1, name: 'Diagnóstico Financeiro', icon: Activity, category: 'free', locked: false, description: 'Descubra sua saúde financeira e taxa de poupança.' },
     { id: 2, name: 'Juros Compostos', icon: TrendingUp, category: 'free', locked: false, description: 'Simulação exata de multiplicação patrimonial.' },
     { id: 3, name: 'Reserva de Emergência', icon: ShieldCheck, category: 'free', locked: false, description: 'Cálculo de blindagem contra o acaso.' },
-    { id: 4, name: 'Amortização de Dívidas', icon: Calculator, category: 'free', locked: false, description: 'Descubra o verdadeiro custo da sua dívida.' },
+    { id: 4, name: 'Acelerador de Financiamento & Dívidas (SAC/PRICE)', icon: Calculator, category: 'free', locked: false, description: 'Aniquilação de juros em imóveis, casas e dívidas com amortizações extras e método Avalanche.' },
     { id: 5, name: 'Independência (O Fator Tempo)', icon: LucidePieChart, category: 'free', locked: false, description: 'Fórmula logarítmica para descobrir "quando".' },
     { id: 6, name: 'IA Preditiva: Alocação de Ativos', icon: Layers, category: 'free', locked: false, description: 'Modelos institucionais e rebalanceamento via IA.' },
-    { id: 7, name: 'Análise de Ações (Valuation)', icon: Building, category: 'premium', locked: true, description: 'Fórmulas de Graham, Bazin e DCF prontas para uso.' },
-    { id: 8, name: 'Otimização Fiscal (IR)', icon: FileText, category: 'premium', locked: true, description: 'Estratégias lícitas para redução de carga tributária.' }
+    { id: 7, name: 'Agente de IA Pessoal (Agent-S 15 Anos)', icon: Bot, category: 'free', locked: false, description: 'Trajetória 15 anos: R$ 1.000 -> 5x-8x -> US$ 2.000/sem com cockpit multi-ciclos.' },
+    { id: 8, name: 'Análise de Ações (Valuation)', icon: Building, category: 'premium', locked: true, description: 'Fórmulas de Graham, Bazin e DCF prontas para uso.' },
+    { id: 9, name: 'Otimização Fiscal (IR)', icon: FileText, category: 'premium', locked: true, description: 'Estratégias lícitas para redução de carga tributária.' }
   ];
 
   // Configuração Analítica Isolada
@@ -320,7 +323,7 @@ export const FinanceCalculators: React.FC = () => {
       const toolId = e.detail?.id;
       if (toolId) {
         setSelectedService(toolId);
-        setActiveCategory(toolId >= 6 ? 'premium' : 'free');
+        setActiveCategory(toolId >= 8 ? 'premium' : 'free');
       }
     };
     window.addEventListener('zyc_open_tool', handleOpenTool);
@@ -489,6 +492,31 @@ export const FinanceCalculators: React.FC = () => {
             'Aderência Fiscal: Manter foco em instrumentos isentos de Imposto de Renda e títulos soberanos de longo prazo.',
           ],
         };
+      case 7:
+        return {
+          toolId: 7,
+          toolName: 'Agente de IA Financeiro Pessoal (Agent-S Trajetória 15 Anos)',
+          parameters: [
+            { label: 'Capital Inaugural', value: 'R$ 1.000,00' },
+            { label: 'Meta de Médio Prazo', value: 'Multiplicação de 5x a 8x' },
+            { label: 'Meta de Longo Prazo', value: 'US$ 2.000,00 por semana' },
+            { label: 'Aporte Trimestral Crescente', value: '+R$ 150 a R$ 2.000/trimestre' },
+            { label: 'Alocação Proventos', value: '20% Pessoal / 25% Negócios / 40% Ações / 15% Hedge' },
+          ],
+          metrics: [
+            { label: 'Alvo Patrimonial Global', value: 'US$ 2.600.000,00', highlight: true, badge: 'SWR 4% Trinity' },
+            { label: 'Horizonte de Escala', value: '15 Anos (Curto, Médio e Longo Prazo)' },
+            { label: 'Paradigma Arquitetural', value: 'Agent-S Hierarchical Planner', highlight: true, badge: 'MOSC-ZYC' },
+          ],
+          formulaTitle: 'Simulação Estocástica de Trajetória Patrimonial & Safe Withdrawal Rate',
+          formulaMath: 'W_{t+1} = (W_t + PMT_t) * (1 + R_{real, t})  onde  PMT_{t+1} = PMT_t + Delta_{step}',
+          formulaExplanation: 'Projeção estocástica com ajuste dinâmico de poder de compra pela Paridade de Poder de Compra (PPP), desvio padrão de volatilidade e cone de incerteza Monte Carlo P10-P90.',
+          recommendations: [
+            'Fase 1 (Ano 1): Foco absoluto no hábito de aporte e preservação do principal inicial de R$ 1.000.',
+            'Fase 2 (Anos 2 a 5): Reinvestimento agressivo para capturar a multiplicação de 5x a 8x.',
+            'Fase 3 (Anos 6 a 15): Dolarização progressiva da carteira até 85% para sustentar retiradas em moeda forte.',
+          ],
+        };
     }
   };
 
@@ -502,6 +530,7 @@ export const FinanceCalculators: React.FC = () => {
         4: { id: '4', name: 'Amortização Price', data: { loanAmount, loanRate, loanYears } },
         5: { id: '5', name: 'Independência Financeira', data: { currentWealth, targetWealth, wealthContribution, wealthRate } },
         6: { id: '6', name: 'Alocação IA', data: { aiProfile, aiAmount } },
+        7: { id: '7', name: 'Agente de IA Pessoal', data: { status: 'active_cockpit' } },
       };
 
       const current = toolMap[selectedService] || toolMap[1];
@@ -804,31 +833,20 @@ export const FinanceCalculators: React.FC = () => {
 
               {selectedService === 4 && (
                 <div className="animate-in fade-in slide-in-from-right-4 duration-500">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="bg-red-100 p-2 rounded-lg"><Calculator className="w-6 h-6 text-red-600" /></div>
-                    <h2 className="text-2xl font-black text-zinc-900">Simulador de Dívida</h2>
+                  <DebtPayoffAccelerator 
+                    initialLoanAmount={loanAmount}
+                    initialLoanRate={loanRate}
+                    initialLoanYears={loanYears}
+                    onSyncContext={(amt, rate, yrs) => {
+                      setLoanAmount(amt);
+                      setLoanRate(rate);
+                      setLoanYears(yrs);
+                    }}
+                  />
+                  <div className="mt-8 pt-6 border-t border-zinc-200 dark:border-zinc-800">
+                    <SaveButton toolId="4" name="Acelerador de Financiamento & Dívidas" data={{ loanAmount, loanRate, loanYears, pmt, totalInterest }} />
+                    <EmailCapture toolName="Acelerador de Quitação de Dívidas" resultData={{ loanAmount, loanRate, loanYears, pmt, totalInterest }} />
                   </div>
-                  {/* ... inputs for Tool 4 ... */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
-                    <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Valor Financiado (R$)</label>
-                      <input type="number" value={loanAmount} onChange={(e) => setLoanAmount(Number(e.target.value))} onBlur={() => trackFieldFill('Valor Financiado')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-zinc-50 font-mono text-lg" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Taxa CET Anual (%)</label>
-                      <input type="number" value={loanRate} onChange={(e) => setLoanRate(Number(e.target.value))} onBlur={() => trackFieldFill('Taxa Financiamento')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-zinc-50 font-mono text-lg" />
-                    </div>
-                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Prazo (Anos)</label>
-                      <input type="number" value={loanYears} onChange={(e) => setLoanYears(Number(e.target.value))} onBlur={() => trackFieldFill('Anos Financiamento')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-zinc-50 font-mono text-lg" />
-                    </div>
-                  </div>
-                  <div className="bg-red-50 border border-red-200 rounded-2xl p-6 sm:p-8">
-                     <div className="text-sm font-bold uppercase tracking-widest text-red-800 mb-2">Juros Pagos ao Banco</div>
-                     <div className="text-3xl font-black text-red-900 mb-4">{safeNumber(totalInterest).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
-                  </div>
-                  <SaveButton toolId="4" name="Amortização Price" data={{ loanAmount, loanRate, loanYears, pmt, totalInterest }} />
-                  <EmailCapture toolName="Simulador de Dívida" resultData={{ loanAmount, loanRate, loanYears, pmt, totalInterest }} />
                 </div>
               )}
 
@@ -1407,6 +1425,12 @@ export const FinanceCalculators: React.FC = () => {
                       allocatedAssets
                     }}
                   />
+                </div>
+              )}
+
+              {selectedService === 7 && (
+                <div className="animate-in fade-in slide-in-from-right-4 duration-500">
+                  <PersonalAgentCockpit />
                 </div>
               )}
 
