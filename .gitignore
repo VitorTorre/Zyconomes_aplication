@@ -6,3 +6,9 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Lockfiles concorrentes (Projeto estritamente baseado em npm)
+bun.lock
+bun.lockb
+yarn.lock
+pnpm-lock.yaml

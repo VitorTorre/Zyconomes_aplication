@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, X, ArrowRight, Activity, Code2, UserCircle, ChevronDown, Calculator, ShieldCheck, TrendingUp, PieChart, BookOpen, Layers, Shield, Search, WifiOff, Sun, Moon, Bot, Sparkles } from 'lucide-react';
+import { Menu, X, ArrowRight, Activity, Code2, UserCircle, ChevronDown, Calculator, ShieldCheck, TrendingUp, PieChart, BookOpen, Layers, Shield, Search, WifiOff, Sun, Moon, Bot, Sparkles, ArrowLeftRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { FinanceCalculators } from './FinanceCalculators';
 import { InteractiveCockpitBanner } from './InteractiveCockpitBanner';
+import { SplitViewDrawer } from './SplitViewDrawer';
 import { ZyconomesExecutiveManifesto } from './ZyconomesExecutiveManifesto';
 import { ZyconomesSystemDesign } from './ZyconomesSystemDesign';
 import { ZyconomesArchitectureSVG } from './ZyconomesArchitectureSVG';
@@ -56,6 +57,13 @@ export const FinanceTemplate: React.FC = () => {
   const [isDarkTheme, setIsDarkTheme] = useState(() => {
     return localStorage.getItem('zyc_theme') === 'dark';
   });
+  const [splitViewOpen, setSplitViewOpen] = useState(false);
+
+  useEffect(() => {
+    const handleToggleSplitView = () => setSplitViewOpen(prev => !prev);
+    window.addEventListener('zyc_toggle_split_view', handleToggleSplitView);
+    return () => window.removeEventListener('zyc_toggle_split_view', handleToggleSplitView);
+  }, []);
 
   useEffect(() => {
     if (isDarkTheme) {
@@ -275,6 +283,15 @@ export const FinanceTemplate: React.FC = () => {
               <Search className="w-4 h-4" />
               <span className="flex-1">Buscar...</span>
               <span className="text-[10px] font-mono font-bold bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-1.5 py-0.5 rounded text-zinc-400 group-hover:border-zinc-300 dark:group-hover:border-zinc-600">Ctrl+K</span>
+            </button>
+
+            <button
+              onClick={() => setSplitViewOpen(true)}
+              className="p-2 text-zinc-600 hover:text-[#1A1F71] dark:text-zinc-300 dark:hover:text-white bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-full transition-colors flex items-center gap-1.5 px-3 text-xs font-bold cursor-pointer"
+              title="Comparar Cenários Salvos (Split-View)"
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5 text-blue-600" />
+              <span>Split-View</span>
             </button>
 
             <button
@@ -520,6 +537,11 @@ export const FinanceTemplate: React.FC = () => {
       <SearchModal />
       <CookieBanner />
       <FeedbackModal />
+      <SplitViewDrawer 
+        isOpen={splitViewOpen} 
+        onClose={() => setSplitViewOpen(false)} 
+        userEmail="v.torresko2015@gmail.com" 
+      />
     </div>
   );
 };

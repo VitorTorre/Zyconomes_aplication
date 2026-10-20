@@ -1,6 +1,6 @@
 {
-  "summary": "Plano de implementação da arquitetura do Agente de IA Financeiro Pessoal (inspirado no Agent-S) com cockpit interativo de ciclos de mercado, motor de projeção estocástica com progressão de aporte trimestral (+R$ 150 a +R$ 2.000), regra fiduciária de divisão de proventos (20% pessoal, 25% negócios nichados, 40% ações/multimercados, 15% reserva de liquidez), marcos de 5x a 8x no médio prazo e dolarização patrimonial para atingir USD 2.000/semana em 10-15 anos.",
-  "updatedAt": "2026-10-17T22:13:14.493423498Z",
+  "summary": "Plano de governança estrita de CI/CD, blindagem de infraestrutura Cloudflare/GitHub Actions, travas de packageManager e engines no package.json, script unificado npm run validate e documentação exaustiva no README.md.",
+  "updatedAt": "2026-10-19T21:22:10.103787637Z",
   "requestFeedback": true,
   "userFacing": true
 }

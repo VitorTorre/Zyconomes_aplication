@@ -20,14 +20,8 @@ jobs:
           node-version: '20'
           cache: 'npm'
           
-      - name: Install Dependencies (Strict)
+      - name: Install Dependencies (Strict Clean Install)
         run: npm ci
         
-      - name: Static Analysis (Linting)
-        run: npm run lint
-        
-      - name: Unit & Security Tests
-        run: npm test
-      
-      - name: Build Application
-        run: npm run build
+      - name: Full Quality Gate (Lint, Test & Build)
+        run: npm run validate

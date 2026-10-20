@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { SecurityIntrusionSandbox } from './SecurityIntrusionSandbox';
+import { AdminSecuritySummary } from './AdminSecuritySummary';
 
 interface SubsystemHealth {
   name: string;
@@ -67,6 +68,7 @@ export const SuperAdminSecurityPlane: React.FC = () => {
   const [stepUpError, setStepUpError] = useState('');
   const [stepUpLoading, setStepUpLoading] = useState(false);
   const [elevatedToken, setElevatedToken] = useState<string | null>(null);
+  const [securityViewMode, setSecurityViewMode] = useState<'admin_criteria' | 'superadmin_crypto'>('admin_criteria');
 
   const fetchSecurityData = async () => {
     try {
@@ -250,8 +252,44 @@ export const SuperAdminSecurityPlane: React.FC = () => {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
-      {/* Top Banner: Architecture & Step-Up Status */}
-      <div className="bg-zinc-900 text-zinc-100 rounded-2xl p-6 border border-zinc-800 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-6">
+      {/* RBAC View Mode Selector (Admin vs Super Admin / Dev) */}
+      <div className="flex flex-wrap items-center gap-2 p-1.5 bg-zinc-100 dark:bg-zinc-800/80 rounded-2xl border border-zinc-200 dark:border-zinc-700 w-full sm:w-fit">
+        <button
+          type="button"
+          onClick={() => setSecurityViewMode('admin_criteria')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+            securityViewMode === 'admin_criteria'
+              ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm border border-zinc-200 dark:border-zinc-700'
+              : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+          }`}
+        >
+          <Shield className="w-3.5 h-3.5 text-blue-600" />
+          Visão Admin (Critérios de Risco & Checklist Diário/Semanal)
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setSecurityViewMode('superadmin_crypto')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+            securityViewMode === 'superadmin_crypto'
+              ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm border border-zinc-200 dark:border-zinc-700'
+              : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+          }`}
+        >
+          <Lock className="w-3.5 h-3.5 text-amber-500" />
+          Visão Super Admin / Dev (Aparato Criptográfico & Probes)
+        </button>
+      </div>
+
+      {securityViewMode === 'admin_criteria' ? (
+        <AdminSecuritySummary 
+          onElevateToSuperAdmin={() => setSecurityViewMode('superadmin_crypto')}
+          isSuperAdminAvailable={true}
+        />
+      ) : (
+        <>
+          {/* Top Banner: Architecture & Step-Up Status */}
+          <div className="bg-zinc-900 text-zinc-100 rounded-2xl p-6 border border-zinc-800 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-[#1A1F71] text-white flex items-center gap-1.5">
@@ -635,6 +673,8 @@ export const SuperAdminSecurityPlane: React.FC = () => {
           </div>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 };

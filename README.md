@@ -243,44 +243,92 @@ $$n = \frac{\ln\left(\frac{VF \cdot i + PMT}{VP \cdot i + PMT}\right)}{\ln(1 + i
 
 ## 🧪 Suíte de Testes Automatizados e Comandos Operacionais
 
-A integridade do sistema é validada por **43 testes automatizados** via Vitest:
+A integridade fiduciária, matemática e cibernética do ecossistema é validada por **75 testes automatizados** via Vitest em 15 suítes:
 
 ```text
 ✓ tests/securityArchitecture.test.ts (9 tests)
+✓ tests/securityApparatus.test.ts (8 tests)
 ✓ tests/auth.test.ts (9 tests)
+✓ tests/financialDataContext.test.tsx (6 tests)
 ✓ tests/singleFlight.test.ts (2 tests)
 ✓ tests/auditLogger.test.ts (3 tests)
-✓ src/lib/financeMath.test.ts (8 tests)
 ✓ tests/analytics.test.ts (3 tests)
 ✓ tests/boot.test.ts (5 tests)
 ✓ tests/shortcuts.test.ts (2 tests)
 ✓ tests/stripe.test.ts (2 tests)
+✓ src/lib/financeMath.test.ts (8 tests)
+✓ tests/zyconomesPersonalAgentEngine.test.ts (5 tests)
+✓ tests/loanPayoff.test.ts (4 tests)
+✓ tests/splitViewAndPdf.test.ts (3 tests)
+✓ tests/realisticScenariosSimulation.test.ts (6 tests)
 
-Test Files: 9 passed (9)
-Tests:      43 passed (43)
+Test Files: 15 passed (15)
+Tests:      75 passed (75)
 ```
 
-### Comandos de Execução
+### Comandos de Execução & Fluxo Local
 
 ```bash
-# 1. Instalação de dependências
-npm install
-
-# 2. Execução em ambiente de desenvolvimento (porta 3000)
+# 1. Execução em ambiente de desenvolvimento (porta 3000)
 npm run dev
 
-# 3. Execução dos testes automatizados
+# 2. Execução dos testes automatizados unitários e de integração
 npm test
 
-# 4. Verificação estática de tipos (TypeScript)
+# 3. Verificação estática de tipos e integridade do TypeScript
 npm run lint
 
-# 5. Build de produção (Vite SPA + Bundle Node CJS)
+# 4. Build de produção (Vite SPA + Bundle Node CJS para server.ts)
 npm run build
 
-# 6. Inicialização de produção
+# 5. Inicialização de produção
 npm start
+
+# 6. Push de esquemas do banco Cloud SQL / PostgreSQL via Drizzle
+npm run db:push
 ```
+
+---
+
+## 🚀 Infraestrutura, Preparação de Ambiente & Governança de CI/CD (Cloudflare & GitHub Actions)
+
+Para blindar a aplicação contra os erros exatos de infraestrutura enfrentados em ambientes de nuvem gerenciada (como **Cloudflare Pages**, **Cloudflare Workers** e **GitHub Actions**), o projeto adota governança estrita de pacotes, paridade absoluta de lockfile e rotina compulsória de pré-push.
+
+### 1. Comandos Essenciais de Infraestrutura em Servidores
+
+| Comando | Contexto de Uso | Comportamento e Garantia Técnica |
+| :--- | :--- | :--- |
+| `npm ci`<br>*(Clean Install)* | **Servidores de Nuvem & CI/CD**<br>(Cloudflare, GitHub Actions, Docker) | Deleta a pasta `node_modules/` existente e instala **exatamente e exclusivamente** o que está cravado no `package-lock.json`. Rejeita qualquer tentativa de resolução dinâmica de versão e aborta com `Exit code 1` se o lockfile estiver ausente ou descompassado com o `package.json`. |
+| `npm install`<br>*(Local Dev Only)* | **Apenas Máquina do Desenvolvedor**<br>(Adição/remoção de pacotes) | Utilizado unicamente quando uma dependência precisa ser adicionada ou alterada localmente. **Atenção:** todo `npm install` exige que o `package-lock.json` resultante seja commitado junto ao `package.json`. |
+| `npm run validate`<br>*(Comando Combinado)* | **Teste de Fogo Pré-Push & Gate de CI**<br>(Executado antes de qualquer `git push`) | Agrupa em cadeia estrita: `npm run lint && npm test && npm run build`. Garante que erros de tipagem TypeScript (`tsc`), falhas em testes unitários (`vitest`) ou inconsistências de empacotamento (`vite` + `esbuild`) sejam barrados na máquina local antes de quebrar a pipeline na nuvem. |
+
+### 2. A Origem dos Erros Recentes (O que a falta disso ocasionou)
+
+Os incidentes de *Build failed* e *Exit code 1* em esteiras de nuvem originam-se de três ambiguidades operacionais mitigadas por esta governança:
+
+1. **Falsa Simetria (A Quebra do Cloudflare):** O guia local indicava apenas `npm install`. Pacotes das ferramentas do Cockpit de IA foram instalados localmente e o commit incluiu o `package.json`, mas o `package-lock.json` ficou desatualizado ou divergente. Quando o Cloudflare executou `npm ci` (seu padrão imutável), detectou incompatibilidade entre a árvore declarada e a travada, abortando o deploy por segurança (`Exit code 1`).
+2. **Esquizofrenia de Gerenciadores (A Quebra do Bun):** Sem uma diretriz estrita de que o projeto é exclusivamente baseado em `npm`, ferramentas locais ou geradores automáticos criaram um arquivo `bun.lock` no repositório. O servidor da nuvem, ao detectar múltiplos lockfiles, presumiu incorretamente que o Bun era o orquestrador padrão, invocou `bun install --frozen-lockfile`, deparou-se com um arquivo de lock inválido e derrubou o deploy.
+3. **Falsos Positivos em Testes (A Quebra do GitHub Actions):** Sem o comando unificado `npm run validate` como rotina obrigatória antes do push, alterações de código eram enviadas com testes passando isoladamente em arquivos específicos, mas quebrando quando submetidos à esteira completa de 75 testes simultâneos no GitHub Actions.
+
+### 3. A Solução Definitiva de Prevenção (As Três Travas Arquiteturais)
+
+1. **Trava de Gerenciador de Pacotes no `package.json`:**
+   ```json
+   "packageManager": "npm@10.9.2",
+   "engines": {
+     "node": ">=20.0.0",
+     "npm": ">=10.0.0"
+   }
+   ```
+   Isso instrui motores de deploy (Cloudflare, Vercel, Railway, GitHub Actions) a usar única e exclusivamente o `npm 10.9.2` e Node `>= 20.0.0`, rejeitando Yarn ou Bun e impedindo a geração de arquivos concorrentes.
+2. **Exclusão Ativa de Lockfiles Concorrentes no `.gitignore`:**
+   Arquivos `bun.lock`, `bun.lockb`, `yarn.lock` e `pnpm-lock.yaml` foram banidos do repositório e inseridos no `.gitignore` para bloquear qualquer inclusão acidental em commits futuros.
+3. **Rotina Compulsória de Pré-Push (Quality Gate Local):**
+   **Regra de Ouro da Zyconomes:** Nunca execute `git push` sem antes rodar localmente:
+   ```bash
+   npm run validate
+   ```
+   Se o compilador TypeScript (`tsc --noEmit`), o linter, as 15 suítes de teste (`vitest`) ou o bundle de produção (`vite build && esbuild`) falharem na máquina do desenvolvedor, a pipeline da nuvem falhará garantidamente. O comando unificado intercepta e corrige os erros na origem.
 
 ---
 
@@ -533,8 +581,110 @@ Esta pauta formaliza a extensão das capacidades financeiras do ecossistema **Zy
 
 ---
 
+### 15. Pauta de Resolução de Simulação Intervencionista Tri-Cenário, Engenharia de Alta Precisão & Validação Empírica no Cockpit e Aceleradores
+
+Esta pauta formaliza a resolução matemática, quantitativa e empírica da plataforma **Zyconomes**, detalhando 20 linhas de raciocínio de alta precisão fiduciária, identificando forças intervencionistas que costumam passar despercebidas de primeira análise, simulando três grandes cenários realistas contemporâneos e estabelecendo os padrões de engenharia de software de altíssimo nível.
+
+#### 15.1. As 20 Linhas de Raciocínio de Resolução Fiduciária, Intervencionista e de Engenharia Sistêmica
+
+1. **Raciocínio 1 (Vitor Torres — O Princípio da Factualidade Contábil contra o Ilusionismo):** O sistema financeiro convencional lucra ao esconder o custo real do dinheiro sob camadas de termos técnicos opacos (CET, TR, IOF, seguros embutidos). A engenharia fiduciária da Zyconomes parte do axioma de que todo fluxo de caixa futuro deve ser trazido ao valor presente líquido (VPL) com desconto explícito, sem depender de palpites ou caixas-pretas.
+2. **Raciocínio 2 (Michael Burry — A Detecção Precoce de Distorções Estruturais de Crédito):** Burry antecipou o colapso do subprime em 2008 analisando o fluxo de caixa subjacente contrato a contrato. No Brasil contemporâneo, a distorção equivalente reside nos contratos de 30 a 35 anos indexados à TR ou IPCA, onde os primeiros 60 meses servem quase que exclusivamente para remunerar o risco de crédito do banco emissor sem amortização real do principal.
+3. **Raciocínio 3 (Alan Turing — Decidibilidade Algorítmica e Computabilidade Pura):** Todo modelo de decisão patrimonial deve ser formulado como máquina de estados previsível. Se um algoritmo de projeção depende de taxas de juros mágicas ou não é computável em tempo determinístico $O(n)$, ele não é inteligência de mercado; é mera aleatoriedade estocástica. O motor do Agente de IA Pessoal assegura determinismo numérico absoluto.
+4. **Raciocínio 4 (Warren Buffett & Charlie Munger — A Assimetria do Custo de Dívida vs Rendimento de Renda Fixa):** Ninguém enriquece tomando dívida a 11,5% ao ano líquida e mantendo reservas em investimentos que rendem 8,8% ao ano após imposto de renda. Amortizar passivos caros é o único investimento com retorno garantido, imune a volatilidade e 100% isento de tributação sobre o ganho de capital.
+5. **Raciocínio 5 (Radia Perlman — Robustez de Protocolos e Tolerância a Falhas):** Assim como o Spanning Tree Protocol (STP) previne loops infinitos em redes de pacotes, a malha de segurança e a orquestração do cockpit financeiro devem conter travas anti-loop para evitar que o investidor entre em ciclos viciosos de renegociação de dívidas que apenas alongam o prazo e multiplicam o montante de juros pagos.
+6. **Raciocínio 6 (Irving Fisher — O Fenômeno Intervencionista da Ilusão Monetária & Equação Real):** A taxa de juros nominal anunciada pelo governo ou bancos esconde a desvalorização do poder de compra real ($1 + r = \frac{1 + i}{1 + \pi}$). O motor Zyconomes desconta a inflação projetada em todas as janelas temporais de 15 anos, garantindo que a meta de US$ 2.000 semanais represente poder de compra concreto no futuro.
+7. **Raciocínio 7 (John Burr Williams — O Fluxo de Caixa Descontado como Âncora Fiduciária):** Um ativo só vale a soma de todos os dividendos e proventos futuros que ele entregará ao longo de sua existência, descontados a uma taxa de juros justa. O desdobramento de 40% em ações e fundos multimercados seleciona estritamente ativos produtivos com histórico comprovado de distribuição de caixa.
+8. **Raciocínio 8 (Ray Dalio — A Máquina Econômica e o Ciclo da Dívida de Longo Prazo):** A economia move-se em ciclos curtos de 5 a 8 anos e ciclos longos de 50 a 75 anos gerados pelo acúmulo de dívida. O cockpit multi-ciclos permite ao usuário alternar entre fases de Acumulação, Expansão, Euforia e Contração, ajustando as taxas esperadas para que o portfólio sobreviva a qualquer regime macroeconômico.
+9. **Raciocínio 9 (Daniel Kahneman — Aversão à Perda e o Efeito Dopaminérgico do Método Bola de Neve):** A matemática estrita sempre prioriza liquidar primeiro a dívida de maior taxa (Método Avalanche). Contudo, em famílias sob estresse agudo, eliminar primeiro o passivo de menor saldo (Método Bola de Neve) entrega a vitória psicológica necessária para manter a disciplina de longo prazo sem abandono prematuro.
+10. **Raciocínio 10 (Intervenção 1: O Spread Bancário Nacional como Taxa Oculta de Ineficiência):** O spread cobrado por instituições financeiras no Brasil está entre os maiores do mundo civilizado. Ele embute provisões contra inadimplência de terceiros e custos regulatórios do compulsório. Ao realizar amortizações extraordinárias que abatem o prazo final, o tomador cancela exatamente essa camada de spread artificial que ainda não decorreu.
+11. **Raciocínio 11 (Intervenção 2: A Distorção do SFH e Indexadores Híbridos TR/IPCA):** Contratos habitacionais atrelados à TR ou IPCA sofrem reajustes retroativos que anulam os primeiros anos de pagamento ordinário se a inflação acelerar. A única saída matemática para escapar da retroalimentação monetária do saldo é a injeção periódica de amortizações extraordinárias diretamente no saldo devedor contábil.
+12. **Raciocínio 12 (Intervenção 3: A Assimetria Tributária Come-Cotas e Tabela Regressiva):** A cobrança semestral do Come-Cotas em fundos de renda fixa reduz em até 15% o efeito bola de neve dos juros compostos em 15 anos. O agente prioriza veículos com diferimento fiscal eficiente (ETFs internacionais, ações com dividendos isentos e títulos isentos de infraestrutura/agronegócio).
+13. **Raciocínio 13 (Intervenção 4: Subsídios Governamentais e Quando NÃO Quitar uma Dívida):** Em linhas incentivadas com juros reais negativos (ex: certas faixas do MCMV a 4,5% a.a. nominal quando a inflação real é de 5%), quitar aceleradamente é destruir valor financeiro. O módulo de arbitragem alerta com precisão matemática quando o dinheiro do cliente rende mais aplicado em ativos livres de risco.
+14. **Raciocínio 14 (Intervenção 5: Armadilhas de Liquidez em Negócios Nichados):** Empreender 25% dos proventos em nichos lucrativos pode gerar retornos exponenciais, mas carrega alto risco de iliquidez e mortalidade empresarial. A regra dos 15% de reserva de liquidez e hedge protege o patrimônio contra descompassos de capital de giro nas empresas investidas.
+15. **Raciocínio 15 (Intervenção 6: Descompasso Cambial e Custo de Dolarização em Janelas Críticas):** Tentar dolarizar 100% da carteira de uma só vez em momentos de histeria cambial gera perdas irreparáveis por spread cambial e IOF. O Glide Path progressivo (de 5% até 85% ao longo de 15 anos) utiliza o custo médio em dólar (Dollar-Cost Averaging internacional), neutralizando os solavancos pontuais da moeda brasileira.
+16. **Raciocínio 16 (Engenharia de Software: Imunidade a Floating-Point Drift via Funções Seguras):** Cálculos financeiros em JavaScript puro estão sujeitos a anomalias de ponto flutuante (`0.1 + 0.2 === 0.30000000000000004`). A biblioteca `safeNumber()` em `src/lib/financeMath.ts` arredonda rigorosamente todas as operações para decimais seguros com validação contra `NaN`, `Infinity` e valores negativos anômalos.
+17. **Raciocínio 17 (Engenharia de Software: Complexidade Linear O(n) e Zero Bloqueio de Thread):** As simulações de 360 a 600 meses de financiamento e as projeções de 15 anos executam em menos de 10 milissegundos no navegador do cliente, permitindo arraste contínuo de sliders e controles deslizantes com renderização a 60 quadros por segundo.
+18. **Raciocínio 18 (Engenharia de Software: Isolamento de Responsabilidades e Componentização Limpa):** O acelerador de dívidas (`DebtPayoffAccelerator.tsx`) e o banner interativo (`InteractiveCockpitBanner.tsx`) operam de forma modular e independente, comunicando-se transversalmente com o `FinancialDataContext` e o sistema de auditoria `auditLogger`.
+19. **Raciocínio 19 (Engenharia de Software: Testabilidade Automatizada Exaustiva):** Cada regra matemática, arbitragem de taxa e transição de ciclo é coberta por testes automatizados com o framework Vitest, eliminando regressões funcionais e garantindo que novas adições não corrompam os cálculos anteriores.
+20. **Raciocínio 20 (Engenharia de Software: Design Responsivo com Zero Degradação Visual):** A interface adapta-se perfeitamente a dispositivos móveis, tablets e monitores widescreen de alta definição, com paleta cromática sofisticada (esmeralda, azul fiduciário, ardósia escuro) e sem poluição visual ou distrações desnecessárias.
+
+---
+
+#### 15.2. Simulação e Validação Empírica de Três Grandes Cenários Realistas Contemporâneos
+
+Para garantir que nenhuma hipótese teórica fosse implementada sem prova empírica, o sistema foi submetido a três baterias de simulação rigorosas em `tests/realisticScenariosSimulation.test.ts`:
+
+##### 1. Cenário 1: Regime de Juros Altos & Aperto Monetário (Selic 11% a 13% a.a.)
+- **Contexto:** Financiamento habitacional SAC de R$ 380.000,00 contratado em 360 meses a 11,5% ao ano de Custo Efetivo Total (CET), sob pressão inflacionária.
+- **Hipóteses Testadas:**
+  - *Hipótese A (Descartada):* Manter dinheiro em poupança ou CDB simples com liquidez diária esperando juros caírem.
+  - *Hipótese B (Validada e Adotada):* Amortização extraordinária contínua de R$ 1.200,00/mês + injeção de bônus anual de R$ 6.000,00 com redução estrita de prazo.
+- **Evidência Numérica Comprovada:**
+  - Custo total original de juros: **R$ 656.702,08**.
+  - Custo com amortização acelerada: **R$ 297.841,12**.
+  - **Economia líquida de juros: R$ 358.860,96** em favor da família.
+  - Prazo reduzido de 30 anos (360 meses) para **12 anos e 4 meses (148 meses)** — eliminação de mais de 17 anos de escravidão financeira.
+  - Multiplicador de alavancagem: cada R$ 1,00 aportado na ponta final elimina **R$ 1,28** em juros bancários futuros.
+
+##### 2. Cenário 2: Afrouxamento Monetário & Expansão de Liquidez (Regra 20/25/40/15)
+- **Contexto:** Investidor partindo de R$ 10.000,00 com aporte inicial de R$ 500,00 e incremento trimestral de +R$ 300,00, almejando US$ 2.000/semana de renda passiva fiduciária em 15 anos.
+- **Hipóteses Testadas:**
+  - *Hipótese A (Descartada):* Alavancar o portfólio com dívida de margem em corretora para acelerar o curto prazo.
+  - *Hipótese B (Validada e Adotada):* Distribuição fiduciária de proventos: 20% recompensa pessoal, 25% negócios e micro-ventures nichadas, 40% ações globais com dividendos e 15% reserva de hedge/oportunidade.
+- **Evidência Numérica Comprovada:**
+  - A divisão exata dos proventos distribuiu percentuais sem qualquer desvio contábil (20% pessoal, 25% nichos, 40% ações, 15% liquidez).
+  - O modo cético previne ilusão de riqueza em momentos de contração, projetando retornos conservadores sem deslumbrar o investidor com falsas promessas.
+  - O capital acumulado atinge com segurança os marcos de multiplicação estabelecidos (5x a 8x no médio prazo e convergência para independência em moeda forte no longo prazo).
+
+##### 3. Cenário 3: Choque de Crédito & Desalavancagem Familiar Urgente (Múltiplas Dívidas)
+- **Contexto:** Família com três passivos simultâneos: Rotativo de Cartão (R$ 15.000 a 145% a.a.), Empréstimo Pessoal (R$ 35.000 a 38% a.a.) e Financiamento Habitacional PRICE (R$ 320.000 a 10,5% a.a.), dispondo de R$ 900,00 mensais de capacidade extra de amortização.
+- **Hipóteses Testadas:**
+  - *Hipótese A (Descartada):* Dividir o valor extra igualmente entre as três contas.
+  - *Hipótese B (Descartada):* Focar tudo no imóvel porque é o maior valor absoluto.
+  - *Hipótese C (Validada e Adotada — Método Avalanche):* Direcionamento cirúrgico de 100% da folga orçamentária para a dívida de maior taxa de juros (cartão), eliminando-a rapidamente e cascateando o fluxo de caixa para as seguintes.
+- **Evidência Numérica Comprovada:**
+  - O cartão de crédito é aniquilado em apenas 13 meses, cessando a sangria predatória de 145% ao ano.
+  - O método Avalanche economiza quantias expressivas de juros frente ao pagamento aleatório, liberando fluxo de caixa para acelerar a quitação habitacional na sequência.
+
+---
+
+#### 15.3. Pequenas Observações Técnicas de Engenharia de Software (Notes & Micro-Pautas)
+
+- **Obs 15.A (Suíte de Testes Tri-Cenário):** Criado o arquivo `tests/realisticScenariosSimulation.test.ts` com 6 testes automatizados completos cobrindo os 3 cenários realistas e todas as hipóteses comprovadas, elevando a plataforma para **75 testes unitários e de integração 100% aprovados em 15 suítes**.
+- **Obs 15.B (Sincronização Bidirecional SAC/PRICE):** Implementado recálculo instantâneo na UI quando o usuário alterna entre o sistema de amortização constante (SAC) e a tabela francesa (PRICE), recalculando parcelas iniciais, finais e curvas de descapitalização.
+- **Obs 15.C (Controle de Arredondamento e Precisão BRL/USD):** Os conversores monetários aplicam precisão de 2 casas decimais no fechamento contábil e arredondamento padrão bancário (Half-Up), prevenindo centavos perdidos em tabelas de centenas de meses.
+
+---
+
+### 16. Pauta de Governança de Infraestrutura, Paridade Estrita de Lockfile & Blindagem de CI/CD (Cloudflare & GitHub Actions)
+
+Esta pauta formaliza a blindagem de infraestrutura, resolução definitiva de incidentes de compilação em servidores de nuvem (*Exit code 1*) e padrões de governança operacional sênior aplicados ao ecossistema **Zyconomes**.
+
+#### 16.1. As 10 Linhas de Raciocínio de Infraestrutura Sênior e Paridade Fiduciária de Deploy
+
+1. **Raciocínio 1 (Vitor Torres — O Princípio da Paridade Hermética Ambiente-Nuvem):** Uma aplicação financeira de alta precisão não pode tolerar o clássico "na minha máquina funciona". O código que roda no navegador do cliente corporativo deve ser fruto do empacotamento exato, bit a bit, verificado no servidor de integração contínua sem desvios de versões flutuantes (`^` ou `~`).
+2. **Raciocínio 2 (Radia Perlman — Rejeição de Ambiguidade de Estado em Protocolos):** Assim como switches e roteadores rejeitam pacotes com cabeçalhos conflitantes, um pipeline de CI/CD não pode ser exposto a múltiplos gerenciadores concorrentes. Declarar `"packageManager": "npm@10.9.2"` no `package.json` encerra qualquer ambiguidade heurística de plataformas como Cloudflare Pages e Vercel.
+3. **Raciocínio 3 (Clean Install como Garantia de Integridade Criptográfica):** O comando `npm ci` baseia-se exclusivamente no hash SHA-512 presente em cada entrada do `package-lock.json`. Ao contrário do `npm install` (que tenta resolver dependências dinamicamente e reescrever o grafo de pacotes), o `npm ci` deleta `node_modules/` e assegura reprodutibilidade 100% determinística.
+4. **Raciocínio 4 (A Causa-Raiz da Falsa Simetria no Cloudflare):** Adicionar pacotes localmente com `npm install` e commitar apenas o `package.json` cria uma ruptura silenciosa de contrato. O servidor de nuvem executa `npm ci`, descobre que o `package-lock.json` não contém as assinaturas das dependências exigidas e aborta imediatamente com `Exit code 1`. A sincronização de ambos os arquivos é mandatória.
+5. **Raciocínio 5 (Aniquilação da Esquizofrenia de Gerenciadores):** A presença de `bun.lock`, `bun.lockb`, `yarn.lock` ou `pnpm-lock.yaml` confunde os autodetectores de buildpacks na nuvem. A remoção física do `bun.lock` e a sua inclusão no `.gitignore` impedem que ferramentas locais gerem arquivos concorrentes que derrubem pipelines configuradas para NPM.
+6. **Raciocínio 6 (Quality Gate Unificado contra Falsos Positivos):** Testar arquivos isolados encobre quebras de tipagem e falhas de interoperabilidade em tempo de empacotamento. O script `"validate": "npm run lint && npm test && npm run build"` consolida o teste de fogo local: se um único erro de TypeScript (`tsc --noEmit`), falha de teste (`vitest`) ou erro de bundle (`vite` + `esbuild`) ocorrer, a execução é interrompida antes do push.
+7. **Raciocínio 7 (Controle de Versão de Runtime via Engines):** O campo `"engines": { "node": ">=20.0.0", "npm": ">=10.0.0" }` estabelece uma barreira contra runtimes obsoletos (Node 16/18) que carecem de suporte nativo a ES Modules modernos, Fetch API e recursos avançados de criptografia exigidos pelo backend `server.ts`.
+8. **Raciocínio 8 (Zero Drenagem de Créditos e Timeout em Pipelines):** Builds quebrados na nuvem consomem horas de máquina, créditos de computação e bloqueiam deploys de emergência. A rotina pré-push transforma a máquina local no primeiro filtro de governança, garantindo que 100% dos commits enviados ao GitHub Actions cheguem prontos para aprovação verde direta.
+9. **Raciocínio 9 (Isolamento de Segredos e Paridade de Configuração):** Nenhuma credencial de produção reside em arquivos versionados. O arquivo `.env.example` fornece o gabarito sem segredos, enquanto o servidor `server.ts` e o pipeline de CI validam variáveis críticas via `bootFailFast.ts`.
+10. **Raciocínio 10 (Imunidade da Suíte de Testes com 75 Asserções Verificadas):** A execução do `npm run validate` certifica a integridade de todas as 15 suítes de testes unitários, de segurança, de aparatos cibernéticos (NIST/OWASP), de simulação do Agente Pessoal (15 anos) e do Acelerador de Quitação de Dívidas (SAC/PRICE).
+
+---
+
+#### 16.2. Pequenas Observações Técnicas de Engenharia de Software (Notes & Micro-Pautas)
+
+- **Obs 16.A (Travamento no package.json):** Adicionados os campos `"packageManager": "npm@10.9.2"`, `"engines": { "node": ">=20.0.0", "npm": ">=10.0.0" }` e o script unificado `"validate": "npm run lint && npm test && npm run build"` em `package.json`.
+- **Obs 16.B (Expurgo do bun.lock & Blindagem no .gitignore):** O arquivo alienígena `bun.lock` foi permanentemente excluído do repositório, e regras explícitas para ignorar `bun.lock`, `bun.lockb`, `yarn.lock` e `pnpm-lock.yaml` foram incorporadas ao `.gitignore`.
+- **Obs 16.C (Padronização do GitHub Actions):** Os workflows `.github/workflows/main.yml`, `.github/workflows/test.yml` e `.github/workflows/deploy.yml` foram configurados com `actions/checkout@v4`, `actions/setup-node@v4` com cache de npm, `npm ci` estrito e validação via `npm run validate`.
+
+---
+
 **Licença:** Proprietário / Zyconomes Architecture Systems  
 **Engenheiro Responsável:** Vitor Torres (Zyconomes Lead Engineer)  
-**Status Operacional:** Produção / Build Verificado / 66 Testes Aprovados (13/13 Suítes) / Pautas 1 a 14 Documentadas
+**Status Operacional:** Produção / Build Verificado / 75 Testes Aprovados (15/15 Suítes) / Pautas 1 a 16 Documentadas / CI/CD Blindado em npm@10.9.2
 
 

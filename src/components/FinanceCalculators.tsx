@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Calculator, ShieldCheck, TrendingUp, DollarSign, PieChart as LucidePieChart, Users, Building, Lock, FileText, CheckCircle, ArrowRight, Activity, Layers, Info, Download, Database, Sparkles, Award, Compass, RefreshCw, BarChart3, Sliders, Check, HelpCircle, Link2, RotateCcw, Bot } from 'lucide-react';
+import { Calculator, ShieldCheck, TrendingUp, DollarSign, PieChart as LucidePieChart, Users, Building, Lock, FileText, CheckCircle, ArrowRight, Activity, Layers, Info, Download, Database, Sparkles, Award, Compass, RefreshCw, BarChart3, Sliders, Check, HelpCircle, Link2, RotateCcw, Bot, ArrowLeftRight } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { trackGranularEvent, trackSimulationCompleted } from '../lib/analytics';
 import { useToolAnalytics } from '../hooks/useToolAnalytics';
@@ -607,6 +607,16 @@ export const FinanceCalculators: React.FC = () => {
                 Aportar Sobra ({safeNumber(freeCashFlow).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })})
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('zyc_toggle_split_view'))}
+              className="text-xs font-bold text-blue-900 bg-white hover:bg-blue-50 border border-blue-200 px-3 py-2 rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+              title="Comparar este cenário com snapshots salvos lado a lado"
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5 text-blue-600" />
+              Comparar Cenários (Split-View)
+            </button>
 
             <button
               type="button"

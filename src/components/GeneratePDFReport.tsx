@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { auditLogger } from '../lib/auditLogger';
 import { trackConversionEvent } from '../lib/analytics';
+import { generateExecutivePDF } from '../lib/pdfExporter';
 
 export interface PDFReportParameter {
   label: string;
@@ -132,6 +133,38 @@ export const GeneratePDFReport: React.FC<GeneratePDFReportProps> = ({
     window.print();
   };
 
+  const handleDownloadJsPDF = () => {
+    try {
+      const doc = generateExecutivePDF(activeData, {
+        clientName,
+        documentId: documentId || `ZYC-REP-${Date.now().toString(36).toUpperCase()}`,
+        generatedDate: generatedDate || new Date().toLocaleDateString('pt-BR'),
+      });
+      const fileName = `${documentId || 'ZYC-Relatorio-Executivo'}.pdf`;
+      doc.save(fileName);
+
+      auditLogger.recordAuditEvent({
+        category: 'DATA_EXPORT',
+        severity: 'INFO',
+        action: 'JSPDF_REPORT_DOWNLOADED',
+        details: {
+          documentId,
+          tool: activeData.toolName,
+          fileName,
+          clientName,
+        },
+        source: 'client',
+      });
+
+      trackConversionEvent('report_downloaded_jspdf', {
+        toolName: activeData.toolName,
+        documentId,
+      });
+    } catch (err) {
+      console.error('Erro ao gerar relatório com jsPDF:', err);
+    }
+  };
+
   const getButtonStyle = () => {
     switch (buttonVariant) {
       case 'primary':
@@ -166,7 +199,7 @@ export const GeneratePDFReport: React.FC<GeneratePDFReportProps> = ({
           <div className="bg-white dark:bg-zinc-900 w-full max-w-4xl rounded-3xl shadow-2xl border border-zinc-200 dark:border-zinc-800 my-auto flex flex-col max-h-[92vh] overflow-hidden print:border-none print:shadow-none print:max-h-none print:w-full print:rounded-none">
             
             {/* Modal Actions Header (Screen only) */}
-            <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex items-center justify-between print:hidden">
+            <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex flex-wrap items-center justify-between gap-3 print:hidden">
               <div className="flex items-center gap-2">
                 <FileText className="w-5 h-5 text-[#1A1F71] dark:text-blue-400" />
                 <h3 className="font-bold text-zinc-900 dark:text-zinc-100 text-base">
@@ -177,19 +210,28 @@ export const GeneratePDFReport: React.FC<GeneratePDFReportProps> = ({
                 </span>
               </div>
               
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleDownloadJsPDF}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold px-3 sm:px-4 py-2 rounded-xl flex items-center gap-1.5 shadow transition-all cursor-pointer"
+                  title="Baixar arquivo PDF vetorizado diretamente via jsPDF"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Baixar PDF (jsPDF)</span>
+                </button>
                 <button
                   type="button"
                   onClick={handlePrint}
-                  className="bg-[#1A1F71] hover:bg-[#121652] text-white text-sm font-bold px-4 py-2 rounded-xl flex items-center gap-2 shadow transition-all cursor-pointer"
+                  className="bg-[#1A1F71] hover:bg-[#121652] text-white text-xs sm:text-sm font-bold px-3 sm:px-4 py-2 rounded-xl flex items-center gap-1.5 shadow transition-all cursor-pointer"
                 >
                   <Printer className="w-4 h-4" />
-                  <span>Imprimir / Salvar PDF</span>
+                  <span>Imprimir / Salvar</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsOpen(false)}
-                  className="p-2 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                  className="p-2 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
