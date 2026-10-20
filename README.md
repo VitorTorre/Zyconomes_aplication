@@ -688,3 +688,25 @@ Esta pauta formaliza a blindagem de infraestrutura, resolução definitiva de in
 **Status Operacional:** Produção / Build Verificado / 75 Testes Aprovados (15/15 Suítes) / Pautas 1 a 16 Documentadas / CI/CD Blindado em npm@10.9.2
 
 
+
+
+
+
+
+Seção das dicas de uso da plataforma:
+
+## Governança de Build & Execução (Zyconomes CI/CD)
+
+O ecossistema Zyconomes opera sob rigorosa paridade determinística entre desenvolvimento e produção. É estritamente mandatório o uso do **NPM** (ferramentas como Yarn e Bun estão arquiteturalmente bloqueadas para evitar divergência de lockfiles).
+
+### Fluxo de Desenvolvimento Local (Dev Cockpit)
+1. **`npm install`**: Utilize exclusivamente ao configurar o projeto na sua máquina ou ao adicionar uma dependência. Ao finalizar, é obrigatório realizar o commit do arquivo `package-lock.json` atualizado.
+2. **`npm run dev`**: Inicia o servidor de desenvolvimento (porta 3000) com Hot-Module Replacement.
+3. **`npm run validate`**: **[PORTÃO DE SEGURANÇA OBRIGATÓRIO]**. Execute antes de qualquer `git push`. O comando roda a verificação de tipagem (Lint), a suíte completa de testes fiduciários (Vitest) e valida a compilação do pacote estático.
+
+### Fluxo de Produção (Cloudflare Pages / GitHub Actions)
+- **`npm ci`**: Único comando de instalação permitido em servidores. Ele impõe a leitura rígida do `package-lock.json` gerado pelo desenvolvedor e aborta a esteira em caso de qualquer assimetria de versão.
+- **`npm run build`**: Executa o processo de empacotamento, gerando o bundle SPA otimizado e o motor Node CJS em `/dist`.
+- **`npm start`**: Inicializa o motor de produção.
+
+
