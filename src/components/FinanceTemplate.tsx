@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, X, ArrowRight, Activity, Code2, UserCircle, ChevronDown, Calculator, ShieldCheck, TrendingUp, PieChart, BookOpen, Layers, Shield, Search, WifiOff, Sun, Moon, Bot, Sparkles, ArrowLeftRight } from 'lucide-react';
+import { Menu, X, ArrowRight, Activity, Code2, UserCircle, ChevronDown, Calculator, ShieldCheck, TrendingUp, PieChart, BookOpen, Layers, Shield, Search, WifiOff, Sun, Moon, Bot, Sparkles, ArrowLeftRight, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { FinanceCalculators } from './FinanceCalculators';
 import { InteractiveCockpitBanner } from './InteractiveCockpitBanner';
@@ -8,6 +8,7 @@ import { ZyconomesExecutiveManifesto } from './ZyconomesExecutiveManifesto';
 import { ZyconomesSystemDesign } from './ZyconomesSystemDesign';
 import { ZyconomesArchitectureSVG } from './ZyconomesArchitectureSVG';
 import { ZyconomesBlog } from './ZyconomesBlog';
+import { ZyconomesArticleReader } from './ZyconomesArticleReader';
 import { ZyconomesDashboard } from './ZyconomesDashboard';
 import { LoginPage, AboutPage, ContactPage, LegalPage } from './ZyconomesPages';
 import { CookieBanner, FeedbackModal, SearchModal } from './ZyconomesWidgets';
@@ -51,13 +52,30 @@ export const OfflineIndicator: React.FC = () => {
 export const FinanceTemplate: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showInvestorArea, setShowInvestorArea] = useState(false);
-  const [currentView, setCurrentView] = useState<'home' | 'login' | 'about' | 'contact' | 'privacy' | 'terms' | 'admin' | 'sucesso' | 'premium'>('home');
+  const [currentView, setCurrentView] = useState<'home' | 'login' | 'about' | 'contact' | 'privacy' | 'terms' | 'admin' | 'sucesso' | 'premium' | 'artigo'>('home');
+  const [currentArticleId, setCurrentArticleId] = useState<string>('juros-compostos');
+  const [currentActiveTool, setCurrentActiveTool] = useState<{ id: number; title: string }>({ id: 1, title: 'Diagnóstico Financeiro' });
+  const [lastVisitedRoute, setLastVisitedRoute] = useState<{ view: string; toolId?: number; label: string }>({ view: 'home', toolId: 1, label: 'Diagnóstico Financeiro' });
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isDarkTheme, setIsDarkTheme] = useState(() => {
     return localStorage.getItem('zyc_theme') === 'dark';
   });
   const [splitViewOpen, setSplitViewOpen] = useState(false);
+
+  // Monitora a ferramenta matemática ativa atualmente no sistema
+  useEffect(() => {
+    const handleToolBroadcast = (e: any) => {
+      if (e.detail?.id) {
+        setCurrentActiveTool({ 
+          id: e.detail.id, 
+          title: e.detail.title || `Ferramenta #${e.detail.id}` 
+        });
+      }
+    };
+    window.addEventListener('zyc_active_tool_broadcast', handleToolBroadcast);
+    return () => window.removeEventListener('zyc_active_tool_broadcast', handleToolBroadcast);
+  }, []);
 
   useEffect(() => {
     const handleToggleSplitView = () => setSplitViewOpen(prev => !prev);
@@ -84,13 +102,23 @@ export const FinanceTemplate: React.FC = () => {
     }
     const handleHash = () => {
       const rawHash = window.location.hash.replace('#', '');
-      const cleanHash = rawHash.split('?')[0];
-      const hash = cleanHash || (window.location.pathname.includes('/sucesso') ? 'sucesso' : 'home');
+      const [hashPath, queryString] = rawHash.split('?');
+      const cleanHash = hashPath || (window.location.pathname.includes('/sucesso') ? 'sucesso' : 'home');
+
+      // Rota direta e isolada para artigos educativos
+      if (cleanHash === 'artigo' || cleanHash === 'blog-reader') {
+        const urlParams = new URLSearchParams(queryString || '');
+        const articleId = urlParams.get('id') || 'juros-compostos';
+        setCurrentArticleId(articleId);
+        setCurrentView('artigo');
+        window.scrollTo(0, 0);
+        return;
+      }
       
       setIsTransitioning(true);
       setTimeout(() => {
-        if (['home', 'login', 'about', 'contact', 'privacy', 'terms', 'admin', 'sucesso', 'premium'].includes(hash)) {
-          setCurrentView(hash as any);
+        if (['home', 'login', 'about', 'contact', 'privacy', 'terms', 'admin', 'sucesso', 'premium'].includes(cleanHash)) {
+          setCurrentView(cleanHash as any);
         } else {
           setCurrentView('home');
         }
@@ -113,7 +141,8 @@ export const FinanceTemplate: React.FC = () => {
       privacy: { title: "Política de Privacidade LGPD | Zyconomes", desc: "Saiba como a Zyconomes protege seus dados através do modelo Client-Side." },
       terms: { title: "Termos de Uso | Zyconomes", desc: "Termos educacionais e matemáticos para uso das ferramentas e simuladores da Zyconomes." },
       sucesso: { title: "Assinatura Confirmada | Zyconomes Premium", desc: "Sua assinatura Zyconomes Premium foi confirmada com sucesso." },
-      premium: { title: "Planos e Assinatura | Zyconomes Premium", desc: "Acesse inteligência financeira sem limites com o plano Zyconomes Premium." }
+      premium: { title: "Planos e Assinatura | Zyconomes Premium", desc: "Acesse inteligência financeira sem limites com o plano Zyconomes Premium." },
+      artigo: { title: "Artigo Educativo | Zyconomes Educação", desc: "Inteligência fiduciária e provas matemáticas aplicadas às finanças pessoais sem achismos." }
     };
 
     const data = seoData[currentView] || seoData.home;
@@ -162,14 +191,55 @@ export const FinanceTemplate: React.FC = () => {
     });
   };
 
+  const openArticle = (id: string, customPreviousLabel?: string) => {
+    // Guarda o contexto anterior para retorno inteligente à última página ou ferramenta
+    if (currentView !== 'artigo') {
+      const toolLabel = currentView === 'home' ? currentActiveTool.title : (breadcrumbsMap[currentView] || 'Início');
+      setLastVisitedRoute({
+        view: currentView,
+        toolId: currentActiveTool.id,
+        label: customPreviousLabel || toolLabel
+      });
+    }
+    setCurrentArticleId(id);
+    setCurrentView('artigo');
+    window.location.hash = `artigo?id=${id}`;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setMobileMenuOpen(false);
+  };
+
   const openBlog = (id: string) => {
-    scrollToSection('blog');
-    // Dispatch multiple times to ensure it catches after navigation/mounting
-    [50, 200, 500, 800].forEach(delay => {
+    openArticle(id, 'Blog & Educação');
+  };
+
+  const handleBackFromArticle = () => {
+    const target = lastVisitedRoute.view || 'home';
+    if (target === 'home') {
+      window.location.hash = 'home';
+      setCurrentView('home');
+      const targetToolId = lastVisitedRoute.toolId || currentActiveTool.id || 1;
+      openTool(targetToolId);
       setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('zyc_open_blog', { detail: { id } }));
-      }, delay);
-    });
+        document.getElementById('ferramentas')?.scrollIntoView({ behavior: 'smooth' });
+      }, 150);
+    } else {
+      navigateTo(target);
+    }
+  };
+
+  const handleOpenDiagnosticsFromArticle = () => {
+    window.location.hash = 'home';
+    setCurrentView('home');
+    openTool(1); // Ferramenta 1: Diagnóstico Financeiro
+    setTimeout(() => {
+      document.getElementById('ferramentas')?.scrollIntoView({ behavior: 'smooth' });
+    }, 150);
+  };
+
+  const handleReviewFullSite = () => {
+    window.location.hash = 'home';
+    setCurrentView('home');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const breadcrumbsMap: Record<string, string> = {
@@ -180,7 +250,8 @@ export const FinanceTemplate: React.FC = () => {
     privacy: 'Privacidade (LGPD)',
     terms: 'Termos de Uso',
     sucesso: 'Assinatura Confirmada',
-    premium: 'Plano Premium'
+    premium: 'Plano Premium',
+    artigo: 'Artigo Educativo'
   };
 
   return (
@@ -207,9 +278,6 @@ export const FinanceTemplate: React.FC = () => {
               </button>
               <div className="absolute top-full left-1/2 -translate-x-1/2 mt-0 w-64 bg-white border border-zinc-200 rounded-2xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all p-3 grid grid-cols-1 gap-1 z-50">
                 <div className="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-2 px-3 pt-2">Gratuitas</div>
-                <button onClick={() => openTool(7)} className="flex items-center gap-3 px-3 py-2 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl text-left w-full">
-                  <Bot className="w-4 h-4 text-emerald-600" /> <span className="text-emerald-900 dark:text-emerald-300 font-bold">Agente IA (15 Anos)</span>
-                </button>
                 <button onClick={() => openTool(1)} className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 rounded-xl text-left w-full">
                   <Activity className="w-4 h-4 text-[#1A1F71]" /> <span className="text-zinc-700 font-semibold">Diagnóstico Financeiro</span>
                 </button>
@@ -226,7 +294,20 @@ export const FinanceTemplate: React.FC = () => {
                   <PieChart className="w-4 h-4 text-purple-600" /> <span className="text-zinc-700 font-semibold">Independência (Tempo)</span>
                 </button>
                 
-                <div className="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-2 px-3 pt-4 border-t border-zinc-100 mt-2">Premium</div>
+                <div className="text-xs font-bold uppercase tracking-widest text-amber-500 mb-2 px-3 pt-4 border-t border-zinc-100 mt-2 flex items-center justify-between">
+                  <span>Plano Premium</span>
+                  <span className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-mono font-bold">ISO 27001</span>
+                </div>
+                <button onClick={() => openTool(7)} className="flex items-center gap-3 px-3 py-2 bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 rounded-xl text-left w-full border border-amber-200/60 transition-all">
+                  <div className="p-1 bg-amber-500 text-white rounded-lg"><Bot className="w-3.5 h-3.5" /></div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-amber-950 font-bold text-xs">Cockpit Agente IA (15 Anos)</span>
+                      <Lock className="w-3 h-3 text-amber-600" />
+                    </div>
+                    <span className="text-[10px] text-amber-700 block">Agent-S & ISO 25010</span>
+                  </div>
+                </button>
                 <button onClick={() => openTool(6)} className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 rounded-xl text-left w-full">
                   <Layers className="w-4 h-4 text-zinc-400" /> <span className="text-zinc-500 font-semibold">Alocação de Ativos</span>
                 </button>
@@ -361,7 +442,7 @@ export const FinanceTemplate: React.FC = () => {
       </header>
 
       <main>
-        {currentView !== 'home' && currentView !== 'login' && (
+        {currentView !== 'home' && currentView !== 'login' && currentView !== 'artigo' && (
           <div className="bg-zinc-50 border-b border-zinc-200">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
               <nav className="flex items-center text-xs font-medium text-zinc-500">
@@ -421,8 +502,10 @@ export const FinanceTemplate: React.FC = () => {
                       </p>
                       
                       <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-                        <button onClick={() => scrollToSection('cockpit')} className="w-full sm:w-auto bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white px-8 py-4 rounded-full font-bold text-lg shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer">
-                          Cockpit Agente IA (15 Anos) <Sparkles className="w-5 h-5 text-emerald-200" />
+                        <button onClick={() => scrollToSection('cockpit')} className="w-full sm:w-auto bg-gradient-to-r from-emerald-600 via-teal-700 to-indigo-900 hover:from-emerald-500 hover:to-indigo-800 text-white px-8 py-4 rounded-full font-bold text-lg shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer border border-emerald-400/30">
+                          <span>Cockpit Agente IA (15 Anos)</span>
+                          <span className="text-xs bg-amber-400 text-amber-950 font-black px-2 py-0.5 rounded-full uppercase tracking-wider">Premium</span>
+                          <Sparkles className="w-5 h-5 text-amber-300" />
                         </button>
                         <button onClick={() => scrollToSection('ferramentas')} className="w-full sm:w-auto bg-[#1A1F71] hover:bg-[#121652] text-white px-8 py-4 rounded-full font-bold text-lg shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2">
                           Iniciar Diagnóstico <ArrowRight className="w-5 h-5" />
@@ -452,7 +535,7 @@ export const FinanceTemplate: React.FC = () => {
 
                   {/* BLOG SEO (SSG) */}
                   <section id="blog" className="bg-zinc-50 border-t border-zinc-200 scroll-mt-20">
-                    <ZyconomesBlog />
+                    <ZyconomesBlog onSelectArticle={(id) => openArticle(id, 'Blog & Artigos')} />
                   </section>
 
                   {/* INVESTOR & ARCHITECTURE AREA (HIDDEN BEHIND TOGGLE) */}
@@ -479,6 +562,19 @@ export const FinanceTemplate: React.FC = () => {
                     </div>
                   </section>
                 </>
+              )}
+
+              {/* VISUALIZAÇÃO ISOLADA DEDICADA DE ARTIGO (READER VIEW) */}
+              {/* Descarrega e fecha toda a seção de Motores Matemáticos, exibindo apenas Cabeçalho + Artigo Específico + Rodapé */}
+              {currentView === 'artigo' && (
+                <ZyconomesArticleReader
+                  articleId={currentArticleId}
+                  onBack={handleBackFromArticle}
+                  onOpenDiagnostics={handleOpenDiagnosticsFromArticle}
+                  onNavigateArticle={(newId) => openArticle(newId, 'Artigo Anterior')}
+                  onReviewFullSite={handleReviewFullSite}
+                  previousContextName={lastVisitedRoute.label}
+                />
               )}
 
               {currentView === 'login' && <LoginPage onLogin={() => { setIsLoggedIn(true); navigateTo('home'); }} />}

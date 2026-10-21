@@ -20,6 +20,10 @@ import {
   getStrategyByRiskProfile, 
   AssetAllocationItem 
 } from '../lib/institutionalStrategies';
+import { 
+  activatePermanentPremiumCockpit, 
+  verifyPermanentPremiumCockpit 
+} from '../services/zyconomesIsoComplianceManager';
 
 export const FinanceCalculators: React.FC = () => {
   // --- STATE PERSISTENCE ---
@@ -222,7 +226,36 @@ export const FinanceCalculators: React.FC = () => {
     resetToDefaults,
   } = useFinancialData();
 
-  // Configurações e Categorias (Mesmo que antes)
+  // Verificação Reativa de Nível de Assinatura (Plano Premium e RBAC)
+  const [userTier, setUserTier] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('zyc_user_tier') || 'free';
+    }
+    return 'free';
+  });
+
+  useEffect(() => {
+    const handleSyncTier = (e: any) => {
+      if (e?.detail?.tier) {
+        setUserTier(e.detail.tier);
+      } else if (typeof window !== 'undefined') {
+        setUserTier(localStorage.getItem('zyc_user_tier') || 'free');
+      }
+    };
+    window.addEventListener('zyconomes:tier-updated', handleSyncTier);
+    window.addEventListener('storage', handleSyncTier);
+    return () => {
+      window.removeEventListener('zyconomes:tier-updated', handleSyncTier);
+      window.removeEventListener('storage', handleSyncTier);
+    };
+  }, []);
+
+  const isPremiumUser = userTier === 'premium' || (typeof window !== 'undefined' && (
+    localStorage.getItem('zyc_user_role') === 'admin' ||
+    localStorage.getItem('zyc_user_role') === 'super_admin'
+  ));
+
+  // Configurações e Categorias de Ferramentas
   const services = [
     { id: 1, name: 'Diagnóstico Financeiro', icon: Activity, category: 'free', locked: false, description: 'Descubra sua saúde financeira e taxa de poupança.' },
     { id: 2, name: 'Juros Compostos', icon: TrendingUp, category: 'free', locked: false, description: 'Simulação exata de multiplicação patrimonial.' },
@@ -230,14 +263,23 @@ export const FinanceCalculators: React.FC = () => {
     { id: 4, name: 'Acelerador de Financiamento & Dívidas (SAC/PRICE)', icon: Calculator, category: 'free', locked: false, description: 'Aniquilação de juros em imóveis, casas e dívidas com amortizações extras e método Avalanche.' },
     { id: 5, name: 'Independência (O Fator Tempo)', icon: LucidePieChart, category: 'free', locked: false, description: 'Fórmula logarítmica para descobrir "quando".' },
     { id: 6, name: 'IA Preditiva: Alocação de Ativos', icon: Layers, category: 'free', locked: false, description: 'Modelos institucionais e rebalanceamento via IA.' },
-    { id: 7, name: 'Agente de IA Pessoal (Agent-S 15 Anos)', icon: Bot, category: 'free', locked: false, description: 'Trajetória 15 anos: R$ 1.000 -> 5x-8x -> US$ 2.000/sem com cockpit multi-ciclos.' },
-    { id: 8, name: 'Análise de Ações (Valuation)', icon: Building, category: 'premium', locked: true, description: 'Fórmulas de Graham, Bazin e DCF prontas para uso.' },
-    { id: 9, name: 'Otimização Fiscal (IR)', icon: FileText, category: 'premium', locked: true, description: 'Estratégias lícitas para redução de carga tributária.' }
+    { id: 7, name: 'Cockpit Agente IA (Agent-S 15 Anos)', icon: Bot, category: 'premium', locked: !isPremiumUser, description: 'Trajetória 15 anos: R$ 1.000 -> 5x-8x -> US$ 2.000/sem com cockpit multi-ciclos e conformidade ISO 42001 / 27001 / 27701 / 25010 / 9001 / 22301 / 31000.' },
+    { id: 8, name: 'Análise de Ações (Valuation)', icon: Building, category: 'premium', locked: !isPremiumUser, description: 'Fórmulas de Graham, Bazin e DCF prontas para uso.' },
+    { id: 9, name: 'Otimização Fiscal (IR)', icon: FileText, category: 'premium', locked: !isPremiumUser, description: 'Estratégias lícitas para redução de carga tributária.' }
   ];
 
   // Configuração Analítica Isolada
   const activeTool = services.find(s => s.id === selectedService) || services[0];
   const { trackFieldFill, trackClick, trackCalculation } = useToolAnalytics(activeTool.name);
+
+  // Notifica o sistema principal sobre qual motor matemático está ativo no momento
+  useEffect(() => {
+    if (typeof window !== 'undefined' && activeTool) {
+      window.dispatchEvent(new CustomEvent('zyc_active_tool_broadcast', {
+        detail: { id: activeTool.id, title: activeTool.name }
+      }));
+    }
+  }, [activeTool]);
 
   // IA Alocação & Setup Seletivo Institucional State
   const [setupMode, setSetupMode] = useState<'strategies' | 'profiles'>('strategies');
@@ -1438,29 +1480,115 @@ export const FinanceCalculators: React.FC = () => {
                 </div>
               )}
 
-              {selectedService === 7 && (
+              {selectedService === 7 && !activeTool.locked && (
                 <div className="animate-in fade-in slide-in-from-right-4 duration-500">
                   <PersonalAgentCockpit />
                 </div>
               )}
 
               {activeTool.locked && (
-                <div className="animate-in fade-in slide-in-from-right-4 duration-500 py-12 px-4 text-center max-w-lg mx-auto">
-                  <div className="w-16 h-16 bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm">
+                <div className="animate-in fade-in slide-in-from-right-4 duration-500 py-12 px-4 text-center max-w-xl mx-auto">
+                  <div className="w-16 h-16 bg-gradient-to-tr from-amber-500 to-orange-500 text-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-amber-500/20">
                     <Lock className="w-8 h-8" />
                   </div>
-                  <span className="text-[10px] font-black uppercase tracking-widest bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 px-3 py-1 rounded-full">
-                    Exclusivo Premium
-                  </span>
-                  <h3 className="text-2xl font-black text-zinc-900 dark:text-zinc-100 mt-4 mb-2">
+                  <div className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 px-3 py-1 rounded-full mb-3 border border-amber-300/50">
+                    <Sparkles className="w-3 h-3 text-amber-600 dark:text-amber-400" /> Exclusivo Plano Premium & Pro
+                  </div>
+                  <h3 className="text-2xl sm:text-3xl font-black text-zinc-900 dark:text-zinc-100 mt-1 mb-2">
                     {activeTool.name}
                   </h3>
-                  <p className="text-zinc-600 dark:text-zinc-400 text-sm leading-relaxed mb-8">
-                    {activeTool.description} Desbloqueie acesso imediato a motores de valuation institucionais, otimização fiscal e IA generativa com o Zyconomes Pro.
+                  <p className="text-zinc-600 dark:text-zinc-400 text-sm leading-relaxed mb-6">
+                    {activeTool.id === 7 
+                      ? 'O Cockpit do Agente de IA Financeiro é um recurso de inteligência patrimonial avançada. Simula a trajetória fiduciária completa de 15 anos com cones de Monte Carlo P10-P90, alocação de proventos (20/25/40/15) e paridade de poder de compra (PPP).' 
+                      : activeTool.description} Desbloqueie acesso imediato a motores analíticos institucionais com o Zyconomes Pro.
                   </p>
-                  <PremiumButton label="Desbloquear Todas as Ferramentas — R$ 19,90/mês" />
+
+                  {/* MATRIZ DE CONFORMIDADE COM NORMAS ISO */}
+                  <div className="p-4 bg-zinc-50 dark:bg-zinc-900/90 border border-zinc-200 dark:border-zinc-800 rounded-2xl mb-8 text-left space-y-2.5">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-600 dark:text-zinc-400 flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      Conformidade e Governança Internacional (Normas ISO):
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                      <div className="p-2.5 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700/80">
+                        <div className="font-mono font-bold text-emerald-700 dark:text-emerald-400 flex items-center justify-between">
+                          <span>ISO/IEC 42001</span>
+                          <span className="text-[9px] bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.5 rounded font-mono">IA Ética</span>
+                        </div>
+                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-tight">
+                          Gestão de IA, explicabilidade estocástica e ausência de viés.
+                        </p>
+                      </div>
+                      <div className="p-2.5 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700/80">
+                        <div className="font-mono font-bold text-indigo-700 dark:text-indigo-400 flex items-center justify-between">
+                          <span>ISO/IEC 27001</span>
+                          <span className="text-[9px] bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded font-mono">Segurança</span>
+                        </div>
+                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-tight">
+                          Controle de acesso rigoroso (A.9) e criptografia de ponta a ponta (A.10).
+                        </p>
+                      </div>
+                      <div className="p-2.5 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700/80">
+                        <div className="font-mono font-bold text-blue-700 dark:text-blue-400 flex items-center justify-between">
+                          <span>ISO/IEC 27701</span>
+                          <span className="text-[9px] bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded font-mono">Privacidade</span>
+                        </div>
+                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-tight">
+                          Minimização e soberania de dados do usuário (LGPD & Local-First).
+                        </p>
+                      </div>
+                      <div className="p-2.5 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700/80">
+                        <div className="font-mono font-bold text-teal-700 dark:text-teal-400 flex items-center justify-between">
+                          <span>ISO/IEC 25010</span>
+                          <span className="text-[9px] bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 px-1.5 py-0.5 rounded font-mono">Qualidade</span>
+                        </div>
+                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-tight">
+                          Acurácia numérica em O(n), tolerância a falhas e imunidade.
+                        </p>
+                      </div>
+                      <div className="p-2.5 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700/80">
+                        <div className="font-mono font-bold text-amber-700 dark:text-amber-400 flex items-center justify-between">
+                          <span>ISO 9001:2015</span>
+                          <span className="text-[9px] bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded font-mono">Gestão</span>
+                        </div>
+                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-tight">
+                          Consistência operacional, auditoria fiduciária contínua e ciclo PDCA.
+                        </p>
+                      </div>
+                      <div className="p-2.5 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700/80">
+                        <div className="font-mono font-bold text-purple-700 dark:text-purple-400 flex items-center justify-between">
+                          <span>ISO 22301:2019</span>
+                          <span className="text-[9px] bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded font-mono">Resiliência</span>
+                        </div>
+                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-tight">
+                          Continuidade operacional offline e soberania fiduciária local.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {activeTool.id === 7 ? (
+                    <div className="space-y-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          activatePermanentPremiumCockpit('Investidor Fiduciário Zyconomes (Licença Permanente)');
+                          setUserTier('premium');
+                        }}
+                        className="w-full bg-gradient-to-r from-emerald-600 via-teal-700 to-indigo-900 hover:from-emerald-500 hover:to-indigo-800 text-white font-bold py-3.5 px-6 rounded-2xl text-sm flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all cursor-pointer border border-emerald-400/40"
+                      >
+                        <Sparkles className="w-4 h-4 text-amber-300" />
+                        <span>Transferir Cockpit Agente IA para Plano Premium Permanente (Conformidade ISO)</span>
+                      </button>
+                      <div className="text-center">
+                        <PremiumButton label="Ou Assinar Todas as Ferramentas — R$ 19,90/mês" />
+                      </div>
+                    </div>
+                  ) : (
+                    <PremiumButton label="Desbloquear Todas as Ferramentas — R$ 19,90/mês" />
+                  )}
                   <div className="mt-4 text-xs text-zinc-400">
-                    Cancele a qualquer momento. Sem fidelidade.
+                    Acesso permanente certificado sob ISO 42001, ISO 27001, ISO 27701 e ISO 25010.
                   </div>
                 </div>
               )}

@@ -53,6 +53,10 @@ export const PremiumPage: React.FC = () => {
               </li>
               <li className="flex items-start gap-3 text-zinc-400 dark:text-zinc-600 line-through">
                 <Lock className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>Cockpit Agente IA (15 Anos Multi-Ciclos)</span>
+              </li>
+              <li className="flex items-start gap-3 text-zinc-400 dark:text-zinc-600 line-through">
+                <Lock className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>Salvar simulações na nuvem</span>
               </li>
               <li className="flex items-start gap-3 text-zinc-400 dark:text-zinc-600 line-through">
@@ -92,6 +96,10 @@ export const PremiumPage: React.FC = () => {
               <li className="flex items-start gap-3">
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
                 <span className="font-medium">Tudo do plano gratuito</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <Sparkles className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                <span><strong>Cockpit Agente IA (15 Anos):</strong> Projeção multi-ciclos, divisão de proventos (20/25/40/15) e conformidade ISO 27001 / 25010</span>
               </li>
               <li className="flex items-start gap-3">
                 <Zap className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />

@@ -24,9 +24,22 @@ const parseMarkdownWithMeta = (rawMd: string) => {
   return { meta, content };
 };
 
-export const ZyconomesBlog: React.FC = () => {
+export interface ZyconomesBlogProps {
+  onSelectArticle?: (id: string) => void;
+}
+
+export const ZyconomesBlog: React.FC<ZyconomesBlogProps> = ({ onSelectArticle }) => {
   const [activeArticle, setActiveArticle] = useState<any>(null);
   const [articles, setArticles] = useState<any[]>([]);
+
+  const handleOpenArticle = (id: string) => {
+    trackGranularEvent('engagement', 'button_click', `Ler Artigo (${id})`);
+    if (onSelectArticle) {
+      onSelectArticle(id);
+    } else {
+      window.location.hash = `artigo?id=${id}`;
+    }
+  };
 
   useEffect(() => {
     // Dynamic import of markdown files in Vite
@@ -49,29 +62,13 @@ export const ZyconomesBlog: React.FC = () => {
   useEffect(() => {
     const handleOpenBlog = (e: any) => {
       const blogId = e.detail?.id;
-      if (blogId && articles.length > 0) {
-        const article = articles.find(a => a.id === blogId);
-        if (article) {
-          setActiveArticle(article);
-        }
-      } else if (blogId && articles.length === 0) {
-        // Retry logic if articles are still loading
-        const interval = setInterval(() => {
-           setArticles(currentArticles => {
-              if (currentArticles.length > 0) {
-                 const article = currentArticles.find(a => a.id === blogId);
-                 if (article) setActiveArticle(article);
-                 clearInterval(interval);
-              }
-              return currentArticles;
-           });
-        }, 100);
-        setTimeout(() => clearInterval(interval), 2000);
+      if (blogId) {
+        handleOpenArticle(blogId);
       }
     };
     window.addEventListener('zyc_open_blog', handleOpenBlog);
     return () => window.removeEventListener('zyc_open_blog', handleOpenBlog);
-  }, [articles]);
+  }, [articles, onSelectArticle]);
 
   useEffect(() => {
     if (activeArticle) {
@@ -154,7 +151,7 @@ export const ZyconomesBlog: React.FC = () => {
         ) : articles.map((article) => (
           <div 
             key={article.id}
-            onClick={() => setActiveArticle(article)}
+            onClick={() => handleOpenArticle(article.id)}
             className="group cursor-pointer bg-white border border-zinc-200 hover:border-[#1A1F71]/30 hover:shadow-2xl rounded-3xl p-8 sm:p-10 transition-all duration-300 flex flex-col h-full transform hover:-translate-y-1"
           >
             <div className="flex items-center justify-between mb-6">

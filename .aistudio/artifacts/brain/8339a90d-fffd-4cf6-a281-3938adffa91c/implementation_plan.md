@@ -1,80 +1,76 @@
-# Blindagem de Infraestrutura, Governança Estrita de CI/CD & Travas de Ambiente
+# Plano de Implementação: Visualização Isolada de Artigos (Reader View) & Reconfiguração da Navegação
 
-Plano arquitetural para blindar a plataforma Zyconomes contra falhas de deploy no Cloudflare Pages/Workers e GitHub Actions, eliminando ambiguidades entre gerenciadores de pacotes (`npm` vs `bun`/`yarn`), garantindo paridade total de lockfile via `npm ci` e estabelecendo a rotina pré-push via script unificado `npm run validate`.
-
-## Decisões Confirmadas & Governança
-
-> [!IMPORTANT]
-> **Decisões Alinhadas com o Usuário:**
-> - **Gerenciador Oficial Estrito**: Bloqueio definitivo em `npm@10.9.2` e Node.js `>=20.0.0` via campos `packageManager` e `engines` no `package.json`.
-> - **CI/CD no GitHub Actions**: Padronização dos workflows de CI/CD para execução determinística com `npm ci` e pipeline de validação completa.
-> - **Documentação & Pauta 16 no README.md**: Seção dedicada à infraestrutura de servidores com explicação didática sobre a quebra por falsa simetria, eliminação de arquivos fantasmas (`bun.lock`, `yarn.lock`) e rotina pré-push.
+Plano detalhado para atender a solicitação do usuário: ao clicar em **"Ler artigo"** (ou selecionar qualquer artigo pelo título ou menu), o sistema descarrega/fecha temporariamente a seção **"Motores Matemáticos"** (Hero, Cockpit Agente IA e Calculadoras), apresentando **apenas o Cabeçalho (Header)** no topo, o **Artigo Específico correspondente** no corpo principal e o **Rodapé (Footer)** logo abaixo, com histórico de navegação para retornar exatamente à última página ou ferramenta utilizada.
 
 ---
 
-## 1. Visão Geral & Problemas Resolvidos
+## 1. Visão Geral da Arquitetura & Diagnóstico do Estado Atual
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       FLUXO DE INTEGRAÇÃO CONTÍNUA                          │
-│                                                                             │
-│  [Dev Local] ───────────► [Pré-Push: npm run validate] ────► [git push]     │
-│   (npm install)             ├─ tsc --noEmit (Tipos)                         │
-│                             ├─ vitest run (75 Testes)                       │
-│                             └─ vite build (Compilação)                      │
-│                                                                             │
-│  [Cloudflare / GitHub CI] ◄─────────────────────────────────────────────────┘
-│   (npm ci estrito)                                                          │
-│   ├─ packageManager: npm@10.9.2                                             │
-│   ├─ engines: node >= 20.0.0                                                │
-│   └─ Lockfile congelado e auditado (Zero Exit Code 1)                       │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+### Estado Atual
+- No momento, o componente `<ZyconomesBlog />` é renderizado como uma seção dentro da página inicial (`#blog`).
+- Ao clicar em "Ler Artigo", o componente apenas troca o estado interno (`activeArticle`), mas a página inteira continua com a seção Hero, o Cockpit Agente IA e todas as Calculadoras empilhadas acima do artigo, forçando um scroll ou poluindo a experiência de leitura.
+- Os botões no dropdown do Header (`openBlog(...)`) apenas rolam a página até `#blog` e disparam um evento customizado.
 
-### O que causou as falhas anteriores:
-1. **Falsa Simetria (Cloudflare Exit Code 1)**: O comando `npm install` local atualizou arquivos sem garantir o congelamento do `package-lock.json`. Ao rodar em produção com `npm ci`, o servidor detectou divergência e abortou a esteira.
-2. **Esquizofrenia de Gerenciadores (Bun vs NPM)**: A coexistência acidental de traços ou lockfiles alternativos induziu servidores a tentar `bun install --frozen-lockfile`, resultando em falhas críticas de build.
-3. **Falsos Positivos de Validação**: Testes e checagens rodados isoladamente mascaravam falhas cruzadas que só apareciam no empacotamento final.
-
----
-
-## 2. Mudanças de Engenharia & Configuração
-
-### 2.1. Travas Arquiteturais no `package.json`
-- Adição dos campos de conformidade:
-  ```json
-  "engines": {
-    "node": ">=20.0.0",
-    "npm": ">=10.0.0"
-  },
-  "packageManager": "npm@10.9.2"
-  ```
-- Adição do script de verificação combinada:
-  ```json
-  "validate": "npm run lint && npm test && npm run build"
-  ```
-
-### 2.2. Padronização dos Workflows do GitHub Actions
-- Atualização e consolidação de `.github/workflows/main.yml` e `.github/workflows/ci.yml`:
-  - Utilização estrita de `npm ci`.
-  - Execução da etapa de validação unificada (`npm run validate`).
-  - Cache nativo do `npm` indexado ao `package-lock.json`.
-
-### 2.3. Seção Dedicada & Pauta 16 no `README.md`
-- **Seção de Infraestrutura & CI/CD**:
-  - Tabela comparativa clara: `npm install` (apenas para adicionar/alterar dependências locais) vs `npm ci` (obrigatório para reproduzir o estado fiel de produção).
-  - Como purgar e regenerar `node_modules` e `package-lock.json` de forma limpa.
-  - Regra de ouro da rotina pré-push: `npm run validate` antes de qualquer `git push`.
-- **Pauta 16 Formalizada**:
-  - Registro da resolução de infraestrutura, lições aprendidas de infraestrutura em nuvem, e diretrizes contra lockfiles concorrentes.
+### Novo Comportamento Projetado
+1. **Reader View Dedicado e Isolado (`currentView === 'artigo'`):**
+   - Quando o usuário clica em "Ler Artigo" (ou num card de artigo, ou pelo menu de artigos no Header), a rota/visão muda para a visualização dedicada do artigo (`#artigo?id={article-id}`).
+   - As seções de **"Motores Matemáticos"** (Hero, Cockpit Agente IA, Calculadoras/Ferramentas e Repositório de Transparência) são descarregadas e fechadas, deixando o artigo limpo e legível.
+   - Apenas o **Cabeçalho Oficial** permanece fixo no topo e o **Rodapé Institucional** é carregado logo abaixo do artigo.
+2. **Histórico e Retorno Inteligente:**
+   - O sistema armazena a última rota/ferramenta visitada antes de entrar no artigo (ex.: se o usuário estava na ferramenta *Acelerador de Financiamento SAC/PRICE*, ou no *Diagnóstico*, ou no *Sobre Nós*).
+   - O botão **"Voltar"** no topo do artigo restaura a última página/ferramenta com precisão fiduciária.
+3. **Botão de Ação "Fazer Diagnóstico Gratuito ->":**
+   - Ao final do artigo e nos CTAs correlatos, o clique em *"Fazer Diagnóstico Gratuito ->"* fecha a visão do artigo, reabre a seção de *Motores Matemáticos* na Home, reativa as calculadoras e faz scroll suave direto para a ferramenta de diagnóstico.
+4. **Elementos Visuais Enriquecidos (Opções 1 e 2 solicitadas):**
+   - **Barra de progresso de leitura** dinâmica no topo da tela acompanhando o scroll;
+   - **Metadados fiduciários:** tempo de leitura, categoria, data de auditoria e autor;
+   - **Tipografia Markdown profissional:** títulos, tabelas, citações em bloco com borda institucional e fórmulas;
+   - **Artigos relacionados:** cards recomendados ao final para continuidade do estudo;
+   - **Botão Voltar com indicação de destino:** exibe para onde o usuário retornará.
 
 ---
 
-## 3. Plano de Verificação & Testes
+## 2. Componentes e Arquivos Impactados
 
-1. **Validação de Sintaxe e Scripts**:
-   - Executar `npm run validate` localmente para certificar que `lint`, `test` (15 suítes, 75 testes) e `build` passam sucessivamente sem nenhum aviso ou quebra.
-2. **Auditoria de Arquivos de Lock**:
-   - Garantir a ausência de arquivos concorrentes (`bun.lock`, `bun.lockb`, `yarn.lock`, `pnpm-lock.yaml`).
-3. **Compilação e Integridade**:
-   - Executar `compile_applet` e `lint_applet` para assegurar build verde.
+1. **`src/components/FinanceTemplate.tsx`**:
+   - Ampliar o tipo `currentView` para incluir `'artigo'`.
+   - Adicionar estado `activeArticleId` e `previousRouteContext` (`{ view: string, toolId?: number }`).
+   - Parser de hash atualizado para reconhecer `#artigo?id={id}` e `#blog?id={id}` com suporte nativo ao botão Voltar/Avançar do navegador (`hashchange`).
+   - Sincronização de SEO dinâmico (`document.title` e `meta description`) com o título do artigo ativo.
+   - Renderização condicional: quando `currentView === 'artigo'`, renderizar `<ZyconomesArticleReader />` entre o Header e o Footer.
+   - Atualizar `openBlog(id)` no Header para abrir diretamente no leitor dedicado.
+2. **`src/components/ZyconomesArticleReader.tsx`** (Novo componente modular):
+   - Leitor completo de artigos Markdown com:
+     - Barra de progresso de leitura horizontal no topo da janela;
+     - Botão de voltar com memória de rota prévia;
+     - Renderização completa via `react-markdown` com estilização refinada;
+     - Card de CTA institucional com botão *"Fazer Diagnóstico Gratuito ->"* com ícone de seta que reabre as ferramentas;
+     - Seção de *Artigos Relacionados* com navegação direta entre artigos.
+3. **`src/components/ZyconomesBlog.tsx`**:
+   - Atualizar os cards da listagem: o clique no card ou no botão *"Ler Artigo <ChevronRight />"* dispara a navegação para a visualização dedicada do artigo (`navigateToArticle(article.id)`).
+4. **`tests/articleReaderNavigation.test.ts`** (Nova suíte de testes automatizados):
+   - Testar o isolamento do leitor de artigo (ausência das seções de calculadoras na visão do artigo);
+   - Testar a retenção de histórico prévio para o botão voltar;
+   - Testar a ação do botão *"Fazer Diagnóstico Gratuito"* reabrindo a seção de ferramentas.
+
+---
+
+## 3. Plano Passo a Passo de Execução
+
+- **Passo 1:** Criar o componente `src/components/ZyconomesArticleReader.tsx` com carregamento dinâmico dos arquivos Markdown de `src/content/blog/`, cálculo de barra de progresso no scroll, botões de ação e lista de artigos relacionados.
+- **Passo 2:** Atualizar `src/components/ZyconomesBlog.tsx` para direcionar o clique de "Ler Artigo" para o roteador do leitor.
+- **Passo 3:** Integrar `ZyconomesArticleReader` no roteamento principal de `src/components/FinanceTemplate.tsx`, gerenciando a abertura do artigo, fechamento das calculadoras/motores matemáticos, atualização de título SEO e restauração da última ferramenta visitada ao clicar em voltar ou no CTA de diagnóstico.
+- **Passo 4:** Criar testes automatizados em `tests/articleReaderNavigation.test.ts` cobrindo roteamento, histórico e renderização de cabeçalho + artigo + rodapé.
+- **Passo 5:** Executar `compile_applet`, `lint_applet` e `npm run validate` para garantir zero regressões e conformidade de build.
+- **Passo 6:** Documentar as alterações em Pauta e Micro-Observações no `README.md`.
+
+---
+
+## 4. Critérios de Aceite e Verificação
+
+- [ ] Clicar em "Ler Artigo" em qualquer post abre a página com **apenas o Cabeçalho, o Artigo específico e o Rodapé**.
+- [ ] A seção "Motores Matemáticos" (Hero, Cockpit e Calculadoras) fica descarregada/fechada durante a leitura do artigo.
+- [ ] O botão "Voltar" dentro do artigo retorna à página ou ferramenta exata previamente visitada pelo usuário.
+- [ ] O botão "Fazer Diagnóstico Gratuito ->" reabre a seção de ferramentas e rola suavemente para o diagnóstico.
+- [ ] Barra de progresso de leitura funcional acompanhando a rolagem do usuário.
+- [ ] Todos os testes automatizados passando 100% verde no Vitest e compilação sem erros no TypeScript.

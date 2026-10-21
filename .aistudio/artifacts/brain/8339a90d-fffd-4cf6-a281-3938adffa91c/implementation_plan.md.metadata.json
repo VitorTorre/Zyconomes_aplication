@@ -1,6 +1,6 @@
 {
-  "summary": "Plano de governança estrita de CI/CD, blindagem de infraestrutura Cloudflare/GitHub Actions, travas de packageManager e engines no package.json, script unificado npm run validate e documentação exaustiva no README.md.",
-  "updatedAt": "2026-10-19T21:22:10.103787637Z",
-  "requestFeedback": true,
-  "userFacing": true
+  "summary":  "Plano arquitetural detalhado para reconfiguração completa da função do botão 'Ler artigo' e visualização isolada do artigo correspondente (Reader View). O artigo é carregado exclusivamente com o cabeçalho no topo e o rodapé institucional logo abaixo, descarregando/fechando a seção de Motores Matemáticos (Hero, Cockpit e Calculadoras), com barra de progresso de leitura, botão de retorno inteligente à última ferramenta/página visitada, botão 'Fazer Diagnóstico Gratuito ->' que reabre as ferramentas e sincronização bidirecional de URL/hash.",
+  "updatedAt":  "2026-10-20T23:52:42.423443511Z",
+  "requestFeedback":  true,
+  "userFacing":  true
 }

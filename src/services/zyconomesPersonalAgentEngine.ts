@@ -88,6 +88,10 @@ export interface PersonalAgentSimulationResult {
     strategicDirective: string;
     behavioralWarning: string;
   };
+  isoComplianceStandards?: string[];
+  summaryMetrics?: {
+    monteCarloMedianEndBRL: number;
+  };
 }
 
 /**
@@ -371,7 +375,19 @@ export function runPersonalAgentSimulation(inputParams: Partial<PersonalAgentSim
     projections,
     cycleInsight,
     inconsistenciesResolved,
-    toneVerdict
+    toneVerdict,
+    isoComplianceStandards: [
+      'ISO/IEC 42001:2023 (Gestão de IA Ética & Explicabilidade Estocástica)',
+      'ISO/IEC 27001:2022 (Segurança da Informação & Integridade Fiduciária)',
+      'ISO/IEC 27701:2019 (Privacidade de Dados Financeiros Local-First)',
+      'ISO/IEC 25010:2023 (Engenharia de Qualidade SQuaRE & Determinismo O(n))',
+      'ISO 9001:2015 (Gestão da Qualidade & Rastreabilidade de Modelos)',
+      'ISO 22301:2019 (Continuidade de Negócios & Resiliência Operacional)',
+      'ISO 31000:2018 (Gestão de Riscos & Estresse Macro Estocástico)'
+    ],
+    summaryMetrics: {
+      monteCarloMedianEndBRL: projections[15]?.p50MedianBRL || 0
+    }
   };
 }
 

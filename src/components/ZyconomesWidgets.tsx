@@ -64,7 +64,11 @@ export const SearchModal: React.FC = () => {
       { title: 'Meu Perfil', path: '#admin', role: 'registered' },
       { title: 'Painel Administrativo', path: '#admin', role: 'registered' },
       { title: 'Relatórios Premium em PDF', path: '#home', anchor: 'ferramentas', role: 'conquistado' },
-      { title: 'Alocação Inteligente de Ativos (IA)', path: '#home', anchor: 'ferramentas', role: 'conquistado' }
+      { title: 'Alocação Inteligente de Ativos (IA)', path: '#home', anchor: 'ferramentas', role: 'conquistado' },
+      { title: 'Artigo: A Ilusão da Rentabilidade (Juros Compostos)', path: '#artigo?id=juros-compostos', role: 'all' },
+      { title: 'Artigo: O Verdadeiro Custo da Dívida (Amortização)', path: '#artigo?id=amortizacao-dividas', role: 'all' },
+      { title: 'Artigo: A Matemática da Independência Financeira', path: '#artigo?id=independencia-financeira', role: 'all' },
+      { title: 'Artigo: Reserva de Emergência e Blindagem', path: '#artigo?id=reserva-de-emergencia', role: 'all' }
     ];
 
     return baseResults
