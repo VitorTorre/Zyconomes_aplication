@@ -1,6 +1,6 @@
 {
-  "summary":  "Plano arquitetural detalhado para reconfiguração completa da função do botão 'Ler artigo' e visualização isolada do artigo correspondente (Reader View). O artigo é carregado exclusivamente com o cabeçalho no topo e o rodapé institucional logo abaixo, descarregando/fechando a seção de Motores Matemáticos (Hero, Cockpit e Calculadoras), com barra de progresso de leitura, botão de retorno inteligente à última ferramenta/página visitada, botão 'Fazer Diagnóstico Gratuito ->' que reabre as ferramentas e sincronização bidirecional de URL/hash.",
-  "updatedAt":  "2026-10-20T23:52:42.423443511Z",
+  "summary":  "Plano arquitetural de implementação do Modo Noturno (Dark Mode) de Alto Contraste no Zyconomes: inversão tipográfica de preto para branco puro, textos secundários em cinza claro legível, transição da marca Zyconomes e destaques de azul escuro (#1A1F71) para azul celeste vibrante e degradê fluorescente (#38BDF8 -> #60A5FA), acionado com alternância reativa pelo botão de Sol/Lua na barra de navegação superior e persistência contínua.",
+  "updatedAt":  "2026-10-22T15:20:27.638132087Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

@@ -179,14 +179,30 @@ export const FinancialDataProvider: React.FC<{ children: React.ReactNode }> = ({
     const yearsToTarget = calculateIndependenceYears(currentWealth, targetWealth, wealthContribution, wealthRate);
     const remainingMonths = yearsToTarget * 12;
 
-    const compoundCalculation = calculateCompoundInterest(savings, monthlyContribution, interestRate, years, 'nominal');
+    let compoundCalculation = { totalAmount: 0, totalInvested: 0, totalInterest: 0 };
+    try {
+      const safeSavings = Math.max(0, safeNumber(savings));
+      const safeContribution = Math.max(0, safeNumber(monthlyContribution));
+      const safeRate = Math.max(0, Math.min(1000, safeNumber(interestRate)));
+      const safeYears = Math.max(0, Math.min(100, safeNumber(years)));
+      compoundCalculation = calculateCompoundInterest(safeSavings, safeContribution, safeRate, safeYears, 'nominal');
+    } catch {
+      compoundCalculation = {
+        totalAmount: safeNumber(savings + (monthlyContribution * years * 12)),
+        totalInvested: safeNumber(savings + (monthlyContribution * years * 12)),
+        totalInterest: 0,
+      };
+    }
 
     let priceCalculation = { pmt: 0, totalInterest: 0 };
     try {
-      const monthlyLoanRate = (loanRate / 12);
-      const months = loanYears * 12;
-      if (loanAmount > 0 && months > 0) {
-        priceCalculation = calculatePRICE(loanAmount, monthlyLoanRate, months);
+      const safeLoan = Math.max(0, safeNumber(loanAmount));
+      const safeLoanRate = Math.max(0, Math.min(1000, safeNumber(loanRate)));
+      const safeLoanYears = Math.max(1, Math.min(100, safeNumber(loanYears)));
+      const monthlyLoanRate = safeLoanRate / 12;
+      const months = safeLoanYears * 12;
+      if (safeLoan > 0 && months > 0) {
+        priceCalculation = calculatePRICE(safeLoan, monthlyLoanRate, months);
       }
     } catch {
       priceCalculation = { pmt: 0, totalInterest: 0 };

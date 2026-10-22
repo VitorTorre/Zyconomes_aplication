@@ -59,8 +59,8 @@ export const InteractiveCockpitBanner: React.FC<{ onOpenFullCockpit: () => void 
 
   const handleOpenCockpitWithLicense = () => {
     if (!isPremium) {
-      activatePermanentPremiumCockpit('Investidor Fiduciário Zyconomes (Licença Permanente)');
-      setIsPremium(true);
+      window.location.hash = 'premium';
+      return;
     }
     trackGranularEvent('engagement', 'button_click', 'Acessar Cockpit Detalhado Premium');
     onOpenFullCockpit();
@@ -171,7 +171,7 @@ export const InteractiveCockpitBanner: React.FC<{ onOpenFullCockpit: () => void 
             onClick={handleOpenCockpitWithLicense}
             className="bg-gradient-to-r from-amber-500 to-emerald-600 hover:from-amber-400 hover:to-emerald-500 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer border border-amber-300/30"
           >
-            <span>{isPremium ? 'Acessar Cockpit Detalhado (Premium Ativo)' : 'Transferir & Acessar Cockpit (Premium)'}</span>
+            <span>{isPremium ? 'Acessar Cockpit Detalhado (Premium Ativo)' : 'Assinar Plano para Desbloquear Cockpit'}</span>
             <Sparkles className="w-3.5 h-3.5 text-amber-200" />
           </button>
         </div>

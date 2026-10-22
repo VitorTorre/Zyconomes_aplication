@@ -18,12 +18,15 @@ export const Sucesso: React.FC = () => {
 
   useEffect(() => {
     // 1. Atualizar nível de assinatura localmente para acesso imediato
-    localStorage.setItem('zyc_user_tier', 'premium');
-    
-    // Tenta obter o email do usuário armazenado
-    const cachedEmail = localStorage.getItem('zyc_user_email');
-    if (cachedEmail) {
-      setUserEmail(cachedEmail);
+    try {
+      localStorage.setItem('zyc_user_tier', 'premium');
+      window.dispatchEvent(new CustomEvent('zyconomes:tier-updated', { detail: { tier: 'premium' } }));
+      const cachedEmail = localStorage.getItem('zyc_user_email');
+      if (cachedEmail) {
+        setUserEmail(cachedEmail);
+      }
+    } catch {
+      // Tolerância a restrições de armazenamento local
     }
 
     // 2. Disparo de telemetria de conversão oficial no Google Analytics e dataLayer

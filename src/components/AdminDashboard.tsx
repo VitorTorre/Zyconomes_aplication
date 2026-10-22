@@ -16,7 +16,8 @@ import {
   Clock, 
   CheckCircle2, 
   AlertTriangle, 
-  Command 
+  Command,
+  FileText
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, BarChart, Bar } from 'recharts';
@@ -25,6 +26,7 @@ import { auditLogger, AuditEvent, AuditCategory, AuditSeverity } from '../lib/au
 import { useBreakpoint } from '../hooks/useBreakpoint';
 import { SuperAdminSecurityPlane } from './SuperAdminSecurityPlane';
 import { MoscMatrixViewer } from './MoscMatrixViewer';
+import { AdminIncidentPanel } from './AdminIncidentPanel';
 
 const RateLimitWidget: React.FC = () => {
   const [stats, setStats] = useState(saveRateLimiter.getStats());
@@ -243,7 +245,7 @@ export const AdminDashboard: React.FC = () => {
     interacoes: Math.floor(Math.random() * 350) + 40,
   }));
 
-  const [mode, setMode] = useState<'admin' | 'security' | 'mosc' | 'b2b'>('admin');
+  const [mode, setMode] = useState<'admin' | 'security' | 'mosc' | 'b2b' | 'incidents'>('admin');
 
   return (
     <motion.div 
@@ -258,6 +260,8 @@ export const AdminDashboard: React.FC = () => {
               <Shield className="w-6 h-6 text-[#1A1F71]" />
             ) : mode === 'mosc' ? (
               <Command className="w-6 h-6 text-[#1A1F71]" />
+            ) : mode === 'incidents' ? (
+              <FileText className="w-6 h-6 text-amber-600" />
             ) : (
               <Server className="w-6 h-6 text-[#1A1F71]" />
             )}
@@ -270,6 +274,8 @@ export const AdminDashboard: React.FC = () => {
                 ? 'Super Admin (Security Plane)'
                 : mode === 'mosc'
                 ? 'Matriz Operacional Coordenativa (MOSC-ZYC)'
+                : mode === 'incidents'
+                ? 'Central de Intercorrências (.txt & Docker)'
                 : 'Consultant Dashboard (B2B)'}
             </h1>
             <p className="text-zinc-500 dark:text-zinc-400">
@@ -279,6 +285,8 @@ export const AdminDashboard: React.FC = () => {
                 ? 'Arquitetura de Segurança, Firewall Comportamental & Contenção'
                 : mode === 'mosc'
                 ? 'Quem Pode Fazer o Quê, Sob Qual Evidência e Nível de Autorização'
+                : mode === 'incidents'
+                ? 'Variáveis Encapsuladas, Registro .txt (15 Linguagens) & Emulação Linux'
                 : 'Visão Geral das Carteiras de Clientes'}
             </p>
           </div>
@@ -305,6 +313,17 @@ export const AdminDashboard: React.FC = () => {
           >
             <Shield className="w-3.5 h-3.5" />
             <span>Super Admin (Security Plane)</span>
+          </button>
+          <button
+            onClick={() => setMode('incidents')}
+            className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer ${
+              mode === 'incidents'
+                ? 'bg-amber-600 text-white shadow-sm'
+                : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700'
+            }`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Intercorrências (.txt)</span>
           </button>
           <button
             onClick={() => setMode('mosc')}
@@ -646,6 +665,8 @@ export const AdminDashboard: React.FC = () => {
         </>
       ) : mode === 'security' ? (
         <SuperAdminSecurityPlane />
+      ) : mode === 'incidents' ? (
+        <AdminIncidentPanel />
       ) : mode === 'mosc' ? (
         <MoscMatrixViewer />
       ) : (

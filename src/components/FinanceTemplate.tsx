@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Menu, X, ArrowRight, Activity, Code2, UserCircle, ChevronDown, Calculator, ShieldCheck, TrendingUp, PieChart, BookOpen, Layers, Shield, Search, WifiOff, Sun, Moon, Bot, Sparkles, ArrowLeftRight, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { FinanceCalculators } from './FinanceCalculators';
@@ -15,6 +15,8 @@ import { CookieBanner, FeedbackModal, SearchModal } from './ZyconomesWidgets';
 import { AdminDashboard } from './AdminDashboard';
 import { Sucesso } from '../pages/Sucesso';
 import { PremiumPage } from '../pages/PremiumPage';
+import { UserProfilePage } from './UserProfilePage';
+import { SessionStabilityBadge } from './SessionStabilityBadge';
 
 export function useOnlineStatus() {
   const [isOnline, setIsOnline] = useState(
@@ -49,19 +51,74 @@ export const OfflineIndicator: React.FC = () => {
   );
 };
 
+type ViewType = 'home' | 'login' | 'about' | 'contact' | 'privacy' | 'terms' | 'admin' | 'sucesso' | 'premium' | 'artigo' | 'perfil';
+
+const parseCurrentRoute = (): { view: ViewType; articleId: string } => {
+  if (typeof window === 'undefined') {
+    return { view: 'home', articleId: 'juros-compostos' };
+  }
+  try {
+    const rawHash = window.location.hash.replace('#', '');
+    const [hashPath, queryString] = rawHash.split('?');
+    const cleanHash = hashPath || (window.location.pathname.includes('/sucesso') ? 'sucesso' : 'home');
+
+    if (cleanHash === 'artigo' || cleanHash === 'blog-reader') {
+      const urlParams = new URLSearchParams(queryString || '');
+      const articleId = urlParams.get('id') || 'juros-compostos';
+      return { view: 'artigo', articleId };
+    }
+
+    const validViews: ViewType[] = ['home', 'login', 'about', 'contact', 'privacy', 'terms', 'admin', 'sucesso', 'premium', 'perfil'];
+    if (validViews.includes(cleanHash as ViewType)) {
+      return { view: cleanHash as ViewType, articleId: 'juros-compostos' };
+    }
+  } catch (err) {
+    console.warn('[FinanceTemplate] Error parsing current route:', err);
+  }
+  return { view: 'home', articleId: 'juros-compostos' };
+};
+
 export const FinanceTemplate: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showInvestorArea, setShowInvestorArea] = useState(false);
-  const [currentView, setCurrentView] = useState<'home' | 'login' | 'about' | 'contact' | 'privacy' | 'terms' | 'admin' | 'sucesso' | 'premium' | 'artigo'>('home');
-  const [currentArticleId, setCurrentArticleId] = useState<string>('juros-compostos');
+  
+  // Inicialização síncrona imediata da rota para evitar tela branca ou skeleton piscando no reload
+  const initialRoute = useMemo(() => parseCurrentRoute(), []);
+  const [currentView, setCurrentView] = useState<ViewType>(initialRoute.view);
+  const [currentArticleId, setCurrentArticleId] = useState<string>(initialRoute.articleId);
   const [currentActiveTool, setCurrentActiveTool] = useState<{ id: number; title: string }>({ id: 1, title: 'Diagnóstico Financeiro' });
   const [lastVisitedRoute, setLastVisitedRoute] = useState<{ view: string; toolId?: number; label: string }>({ view: 'home', toolId: 1, label: 'Diagnóstico Financeiro' });
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isTransitioning, setIsTransitioning] = useState(false);
   const [isDarkTheme, setIsDarkTheme] = useState(() => {
-    return localStorage.getItem('zyc_theme') === 'dark';
+    try {
+      return typeof window !== 'undefined' && localStorage.getItem('zyc_theme') === 'dark';
+    } catch {
+      return false;
+    }
   });
   const [splitViewOpen, setSplitViewOpen] = useState(false);
+
+  // Status de Assinatura Premium e Privilégio Administrativo
+  const [isPremium, setIsPremium] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      const tier = localStorage.getItem('zyc_user_tier');
+      const role = (localStorage.getItem('zyc_user_role') || '').toLowerCase();
+      return tier === 'premium' || ['admin', 'super_admin', 'super_developer', 'security_admin'].includes(role);
+    } catch {
+      return false;
+    }
+  });
+
+  const [isAdminUser, setIsAdminUser] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      const role = (localStorage.getItem('zyc_user_role') || '').toLowerCase();
+      return ['admin', 'super_admin', 'super_developer', 'security_admin', 'dev'].includes(role);
+    } catch {
+      return false;
+    }
+  });
 
   // Monitora a ferramenta matemática ativa atualmente no sistema
   useEffect(() => {
@@ -84,51 +141,65 @@ export const FinanceTemplate: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (isDarkTheme) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('zyc_theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('zyc_theme', 'light');
+    try {
+      if (isDarkTheme) {
+        document.documentElement.classList.add('dark');
+        localStorage.setItem('zyc_theme', 'dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+        localStorage.setItem('zyc_theme', 'light');
+      }
+    } catch (e) {
+      console.warn('[FinanceTemplate] Could not persist theme:', e);
     }
   }, [isDarkTheme]);
 
   useEffect(() => {
-    const savedToken = localStorage.getItem('zyc_auth_token');
-    if (savedToken && savedToken !== 'null' && savedToken !== 'undefined' && savedToken.trim() !== '') {
-      setIsLoggedIn(true);
-    } else {
-      setIsLoggedIn(false);
-    }
-    const handleHash = () => {
-      const rawHash = window.location.hash.replace('#', '');
-      const [hashPath, queryString] = rawHash.split('?');
-      const cleanHash = hashPath || (window.location.pathname.includes('/sucesso') ? 'sucesso' : 'home');
+    const syncAuthAndTier = () => {
+      try {
+        const savedToken = localStorage.getItem('zyc_auth_token');
+        const hasToken = Boolean(savedToken && savedToken !== 'null' && savedToken !== 'undefined' && savedToken.trim() !== '');
+        setIsLoggedIn(hasToken);
 
-      // Rota direta e isolada para artigos educativos
-      if (cleanHash === 'artigo' || cleanHash === 'blog-reader') {
-        const urlParams = new URLSearchParams(queryString || '');
-        const articleId = urlParams.get('id') || 'juros-compostos';
-        setCurrentArticleId(articleId);
-        setCurrentView('artigo');
-        window.scrollTo(0, 0);
-        return;
+        const tier = localStorage.getItem('zyc_user_tier');
+        const role = (localStorage.getItem('zyc_user_role') || '').toLowerCase();
+        setIsPremium(tier === 'premium' || ['admin', 'super_admin', 'super_developer', 'security_admin'].includes(role));
+        setIsAdminUser(['admin', 'super_admin', 'super_developer', 'security_admin', 'dev'].includes(role));
+      } catch {
+        setIsLoggedIn(false);
+        setIsPremium(false);
+        setIsAdminUser(false);
       }
-      
-      setIsTransitioning(true);
-      setTimeout(() => {
-        if (['home', 'login', 'about', 'contact', 'privacy', 'terms', 'admin', 'sucesso', 'premium'].includes(cleanHash)) {
-          setCurrentView(cleanHash as any);
-        } else {
-          setCurrentView('home');
-        }
-        window.scrollTo(0, 0);
-        setIsTransitioning(false);
-      }, 300); // skeleton duration
     };
+
+    syncAuthAndTier();
+
+    const handleAuthChanged = (e: any) => {
+      syncAuthAndTier();
+    };
+
+    const handleTierUpdated = () => {
+      syncAuthAndTier();
+    };
+
+    window.addEventListener('zyconomes:auth-changed', handleAuthChanged);
+    window.addEventListener('zyconomes:tier-updated', handleTierUpdated);
+    window.addEventListener('storage', syncAuthAndTier);
+
+    const handleHash = () => {
+      const { view, articleId } = parseCurrentRoute();
+      setCurrentArticleId(articleId);
+      setCurrentView(view);
+      window.scrollTo(0, 0);
+    };
+
     window.addEventListener('hashchange', handleHash);
-    handleHash();
-    return () => window.removeEventListener('hashchange', handleHash);
+    return () => {
+      window.removeEventListener('hashchange', handleHash);
+      window.removeEventListener('zyconomes:auth-changed', handleAuthChanged);
+      window.removeEventListener('zyconomes:tier-updated', handleTierUpdated);
+      window.removeEventListener('storage', syncAuthAndTier);
+    };
   }, []);
 
   // Dynamic SEO Hook
@@ -142,7 +213,8 @@ export const FinanceTemplate: React.FC = () => {
       terms: { title: "Termos de Uso | Zyconomes", desc: "Termos educacionais e matemáticos para uso das ferramentas e simuladores da Zyconomes." },
       sucesso: { title: "Assinatura Confirmada | Zyconomes Premium", desc: "Sua assinatura Zyconomes Premium foi confirmada com sucesso." },
       premium: { title: "Planos e Assinatura | Zyconomes Premium", desc: "Acesse inteligência financeira sem limites com o plano Zyconomes Premium." },
-      artigo: { title: "Artigo Educativo | Zyconomes Educação", desc: "Inteligência fiduciária e provas matemáticas aplicadas às finanças pessoais sem achismos." }
+      artigo: { title: "Artigo Educativo | Zyconomes Educação", desc: "Inteligência fiduciária e provas matemáticas aplicadas às finanças pessoais sem achismos." },
+      perfil: { title: "Meu Perfil & Informações | Zyconomes", desc: "Consulte e configure suas informações cadastradas e parâmetros financeiros integrados aos motores matemáticos." }
     };
 
     const data = seoData[currentView] || seoData.home;
@@ -164,6 +236,13 @@ export const FinanceTemplate: React.FC = () => {
     updateMeta('', 'og:description', data.desc);
   }, [currentView]);
 
+  const handleLogoClick = () => {
+    window.location.hash = 'home';
+    setCurrentView('home');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setMobileMenuOpen(false);
+  };
+
   const navigateTo = (view: string) => {
     window.location.hash = view;
     setMobileMenuOpen(false);
@@ -182,6 +261,10 @@ export const FinanceTemplate: React.FC = () => {
   };
 
   const openTool = (id: number) => {
+    if (id === 7 && !isPremium) {
+      navigateTo('premium');
+      return;
+    }
     scrollToSection('ferramentas');
     // Dispatch multiple times to ensure it catches after navigation/mounting
     [50, 200, 500, 800].forEach(delay => {
@@ -215,8 +298,7 @@ export const FinanceTemplate: React.FC = () => {
   const handleBackFromArticle = () => {
     const target = lastVisitedRoute.view || 'home';
     if (target === 'home') {
-      window.location.hash = 'home';
-      setCurrentView('home');
+      handleLogoClick();
       const targetToolId = lastVisitedRoute.toolId || currentActiveTool.id || 1;
       openTool(targetToolId);
       setTimeout(() => {
@@ -228,8 +310,7 @@ export const FinanceTemplate: React.FC = () => {
   };
 
   const handleOpenDiagnosticsFromArticle = () => {
-    window.location.hash = 'home';
-    setCurrentView('home');
+    handleLogoClick();
     openTool(1); // Ferramenta 1: Diagnóstico Financeiro
     setTimeout(() => {
       document.getElementById('ferramentas')?.scrollIntoView({ behavior: 'smooth' });
@@ -237,9 +318,7 @@ export const FinanceTemplate: React.FC = () => {
   };
 
   const handleReviewFullSite = () => {
-    window.location.hash = 'home';
-    setCurrentView('home');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    handleLogoClick();
   };
 
   const breadcrumbsMap: Record<string, string> = {
@@ -251,7 +330,8 @@ export const FinanceTemplate: React.FC = () => {
     terms: 'Termos de Uso',
     sucesso: 'Assinatura Confirmada',
     premium: 'Plano Premium',
-    artigo: 'Artigo Educativo'
+    artigo: 'Artigo Educativo',
+    perfil: 'Meu Perfil & Informações'
   };
 
   return (
@@ -261,11 +341,12 @@ export const FinanceTemplate: React.FC = () => {
       <header className="sticky top-0 z-50 bg-white/90 dark:bg-[#0a0a0a]/90 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800 shadow-sm relative transition-colors duration-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           
-          <div className="flex items-center gap-8">
-            <button onClick={() => navigateTo('home')} className="flex items-center outline-none">
-              <span className="text-2xl font-black tracking-tighter text-[#1A1F71]">ZYCONOMES</span>
+          <div className="flex items-center gap-4">
+            <button onClick={handleLogoClick} className="flex items-center outline-none cursor-pointer group" title="Ir para Página Inicial (Index)">
+              <span className="text-2xl font-black tracking-tighter text-[#1A1F71] group-hover:opacity-90 transition-opacity">ZYCONOMES</span>
               <span className="text-emerald-500 text-2xl font-black">.</span>
             </button>
+            <SessionStabilityBadge forceAdmin={isAdminUser} />
           </div>
 
           {/* Desktop Navigation */}
@@ -298,12 +379,12 @@ export const FinanceTemplate: React.FC = () => {
                   <span>Plano Premium</span>
                   <span className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-mono font-bold">ISO 27001</span>
                 </div>
-                <button onClick={() => openTool(7)} className="flex items-center gap-3 px-3 py-2 bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 rounded-xl text-left w-full border border-amber-200/60 transition-all">
+                <button onClick={() => openTool(7)} className="flex items-center gap-3 px-3 py-2 bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 rounded-xl text-left w-full border border-amber-200/60 transition-all cursor-pointer">
                   <div className="p-1 bg-amber-500 text-white rounded-lg"><Bot className="w-3.5 h-3.5" /></div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
                       <span className="text-amber-950 font-bold text-xs">Cockpit Agente IA (15 Anos)</span>
-                      <Lock className="w-3 h-3 text-amber-600" />
+                      {isPremium ? <Sparkles className="w-3 h-3 text-emerald-600" /> : <Lock className="w-3 h-3 text-amber-600" />}
                     </div>
                     <span className="text-[10px] text-amber-700 block">Agent-S & ISO 25010</span>
                   </div>
@@ -388,9 +469,14 @@ export const FinanceTemplate: React.FC = () => {
                 <button onClick={() => navigateTo('admin')} className="text-zinc-600 hover:text-red-500 transition-colors flex items-center gap-1.5 font-bold py-2">
                   <Shield className="w-4 h-4" /> Admin
                 </button>
-                <div className="flex items-center gap-2 text-emerald-600 font-bold bg-emerald-50 px-4 py-2 rounded-full text-xs">
-                  <UserCircle className="w-4 h-4" /> Conta Ativa
-                </div>
+                <button 
+                  onClick={() => navigateTo('perfil')}
+                  className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 px-3.5 py-1.5 rounded-full text-xs transition-colors cursor-pointer shadow-sm group"
+                  title="Acessar Meu Perfil"
+                >
+                  <UserCircle className="w-4 h-4 text-emerald-600 group-hover:scale-110 transition-transform" />
+                  <span>Conta Ativa</span>
+                </button>
               </div>
             ) : (
               <button onClick={() => navigateTo('login')} className="text-zinc-600 hover:text-[#1A1F71] transition-colors flex items-center gap-1.5 font-bold py-2">
@@ -429,9 +515,12 @@ export const FinanceTemplate: React.FC = () => {
                    <UserCircle className="w-4 h-4" /> Login
                  </button>
               ) : (
-                <div className="w-full flex items-center justify-center gap-2 bg-emerald-50 text-emerald-600 px-4 py-3 rounded-xl font-bold">
-                   <UserCircle className="w-4 h-4" /> Conta Ativa
-                 </div>
+                <button 
+                  onClick={() => navigateTo('perfil')} 
+                  className="w-full flex items-center justify-center gap-2 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 px-4 py-3 rounded-xl font-bold cursor-pointer transition-colors"
+                >
+                   <UserCircle className="w-4 h-4 text-emerald-600" /> Meu Perfil (Conta Ativa)
+                </button>
               )}
               <button onClick={() => scrollToSection('ferramentas')} className="w-full flex items-center justify-center gap-2 bg-[#1A1F71] text-white px-4 py-3 rounded-xl font-semibold shadow-sm">
                 <Activity className="w-4 h-4" /> <span>Diagnóstico Gratuito</span>
@@ -454,38 +543,14 @@ export const FinanceTemplate: React.FC = () => {
           </div>
         )}
 
-        <AnimatePresence mode="wait">
-          {isTransitioning ? (
-            <motion.div 
-              key="skeleton"
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 1.02 }}
-              transition={{ duration: 0.2 }}
-              className="py-16 max-w-7xl mx-auto px-4"
-            >
-              <div className="space-y-12">
-                <div className="space-y-4 max-w-3xl">
-                  <motion.div className="h-6 bg-zinc-100 rounded-full w-1/4 animate-pulse"></motion.div>
-                  <motion.div className="h-14 bg-zinc-100 rounded-2xl w-full animate-pulse delay-75"></motion.div>
-                  <motion.div className="h-14 bg-zinc-100 rounded-2xl w-5/6 animate-pulse delay-100"></motion.div>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {[1, 2, 3].map(i => (
-                    <motion.div key={i} className="h-48 bg-zinc-50 border border-zinc-100 rounded-3xl animate-pulse" style={{ animationDelay: `${i * 100}ms` }}></motion.div>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
-          ) : (
-            <motion.div
-              key={currentView}
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
-              transition={{ duration: 0.4, ease: "easeOut" }}
-            >
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={currentView}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+          >
               {currentView === 'home' && (
                 <>
                   {/* HERO SECTION */}
@@ -502,9 +567,20 @@ export const FinanceTemplate: React.FC = () => {
                       </p>
                       
                       <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-                        <button onClick={() => scrollToSection('cockpit')} className="w-full sm:w-auto bg-gradient-to-r from-emerald-600 via-teal-700 to-indigo-900 hover:from-emerald-500 hover:to-indigo-800 text-white px-8 py-4 rounded-full font-bold text-lg shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer border border-emerald-400/30">
+                        <button 
+                          onClick={() => {
+                            if (isPremium) {
+                              scrollToSection('cockpit');
+                            } else {
+                              navigateTo('premium');
+                            }
+                          }} 
+                          className="w-full sm:w-auto bg-gradient-to-r from-emerald-600 via-teal-700 to-indigo-900 hover:from-emerald-500 hover:to-indigo-800 text-white px-8 py-4 rounded-full font-bold text-lg shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer border border-emerald-400/30"
+                        >
                           <span>Cockpit Agente IA (15 Anos)</span>
-                          <span className="text-xs bg-amber-400 text-amber-950 font-black px-2 py-0.5 rounded-full uppercase tracking-wider">Premium</span>
+                          <span className="text-xs bg-amber-400 text-amber-950 font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                            {isPremium ? 'Ativo' : 'Premium'}
+                          </span>
                           <Sparkles className="w-5 h-5 text-amber-300" />
                         </button>
                         <button onClick={() => scrollToSection('ferramentas')} className="w-full sm:w-auto bg-[#1A1F71] hover:bg-[#121652] text-white px-8 py-4 rounded-full font-bold text-lg shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2">
@@ -521,10 +597,38 @@ export const FinanceTemplate: React.FC = () => {
                     </div>
                   </section>
 
-                  {/* COCKPIT INTERATIVO MULTI-CICLOS (AGENTE IA 15 ANOS) */}
+                  {/* COCKPIT INTERATIVO MULTI-CICLOS (AGENTE IA 15 ANOS - EXCLUSIVO PREMIUM) */}
                   <section id="cockpit" className="py-12 bg-zinc-900 border-b border-zinc-800 scroll-mt-20">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                      <InteractiveCockpitBanner onOpenFullCockpit={() => openTool(7)} />
+                      {isPremium ? (
+                        <InteractiveCockpitBanner onOpenFullCockpit={() => openTool(7)} />
+                      ) : (
+                        <div className="p-8 sm:p-12 rounded-3xl bg-gradient-to-br from-zinc-900 via-zinc-950 to-indigo-950 border-2 border-amber-500/30 text-white relative overflow-hidden shadow-2xl">
+                          <div className="max-w-3xl">
+                            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-full text-xs font-bold uppercase tracking-wider mb-4">
+                              <Lock className="w-3.5 h-3.5 text-amber-400" />
+                              <span>Recurso Exclusivo do Plano Premium</span>
+                            </div>
+                            <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-white mb-3">
+                              Cockpit Agente IA (Trajetória de 15 Anos)
+                            </h2>
+                            <p className="text-zinc-300 text-sm sm:text-base leading-relaxed mb-6 font-light">
+                              Projeção algorítmica multi-ciclos (R$ 1.000 &rarr; 5x a 8x &rarr; US$ 2.000/sem) com alocação fiduciária (20% pessoal / 25% negócios / 40% ações / 15% liquidez) e auditoria estrita sob ISO 42001, 27001 e 25010.
+                            </p>
+                            <div className="flex flex-wrap items-center gap-4">
+                              <button
+                                type="button"
+                                onClick={() => navigateTo('premium')}
+                                className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-zinc-950 font-black px-6 py-3.5 rounded-2xl text-sm shadow-lg shadow-amber-500/20 flex items-center gap-2 transition-all cursor-pointer"
+                              >
+                                <Sparkles className="w-4 h-4" />
+                                <span>Conhecer Benefícios & Assinar Plano Premium</span>
+                                <ArrowRight className="w-4 h-4 ml-1" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </section>
 
@@ -578,6 +682,16 @@ export const FinanceTemplate: React.FC = () => {
               )}
 
               {currentView === 'login' && <LoginPage onLogin={() => { setIsLoggedIn(true); navigateTo('home'); }} />}
+              {currentView === 'perfil' && (
+                <UserProfilePage 
+                  onBackToHome={handleLogoClick}
+                  onNavigateToTool={openTool}
+                  onLogoutSuccess={() => {
+                    setIsLoggedIn(false);
+                    handleLogoClick();
+                  }}
+                />
+              )}
               {currentView === 'about' && <AboutPage />}
               {currentView === 'contact' && <ContactPage />}
               {currentView === 'privacy' && <LegalPage type="privacy" />}
@@ -586,7 +700,6 @@ export const FinanceTemplate: React.FC = () => {
               {currentView === 'sucesso' && <Sucesso />}
               {currentView === 'premium' && <PremiumPage />}
             </motion.div>
-          )}
         </AnimatePresence>
       </main>
 
@@ -595,7 +708,13 @@ export const FinanceTemplate: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
             <div className="md:col-span-2">
-              <span className="text-xl font-black tracking-tighter text-white mb-4 block">ZYCONOMES<span className="text-emerald-500">.</span></span>
+              <button 
+                onClick={handleLogoClick} 
+                className="text-xl font-black tracking-tighter text-white mb-4 block text-left outline-none cursor-pointer group"
+                title="Ir para Página Inicial (Index)"
+              >
+                <span className="group-hover:opacity-90 transition-opacity">ZYCONOMES</span><span className="text-emerald-500">.</span>
+              </button>
               <p className="text-sm text-zinc-500 mb-4 max-w-sm">A primeira plataforma de inteligência e diagnóstico financeiro 100% matemática, focada em erradicar o achismo e elevar o seu patrimônio.</p>
               <div className="text-xs text-zinc-600 font-mono space-y-1">
                 <p>CNPJ: 00.000.000/0001-00</p>

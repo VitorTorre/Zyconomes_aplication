@@ -62,15 +62,20 @@ export const LoginPage: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
         localStorage.setItem('zyc_user_email', email);
       }
       
+      // Persist profile data in localStorage for client-side persistence
+      if (name) localStorage.setItem('zyc_user_name', name);
+      if (phone) localStorage.setItem('zyc_user_phone', phone);
+      if (email) localStorage.setItem('zyc_user_email', email);
+
       const res = await fetch('/api/user/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ name, phone, email })
       });
-      // Accept failure in demo since we don't have real token validation for mock email login in backend
+      window.dispatchEvent(new CustomEvent('zyconomes:auth-changed', { detail: { isLoggedIn: true } }));
       onLogin();
     } catch (err: any) {
-      // Fallback to auto-login in UI
+      window.dispatchEvent(new CustomEvent('zyconomes:auth-changed', { detail: { isLoggedIn: true } }));
       onLogin();
     } finally {
       setLoading(false);

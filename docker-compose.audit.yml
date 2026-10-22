@@ -1,0 +1,26 @@
+version: '3.8'
+
+# Zyconomes - Emulador de Máquina Linux Leve para Auditoria de Intercorrências
+# Imagem Alpine Linux ultraleve (~5MB) com limite estrito de 32MB de RAM
+# Uso exclusivo administrativo para monitoramento de intercorrencias_operacionais.txt
+
+services:
+  audit-worker:
+    image: alpine:3.19
+    container_name: zyconomes-audit-lite
+    restart: unless-stopped
+    volumes:
+      - ./logs:/var/log/zyconomes:ro
+    environment:
+      - AUDIT_ENV=production
+      - ISO_COMPLIANCE=ISO_22301
+    command: >
+      sh -c "echo '=== Zyconomes Light Audit Alpine Linux Emulation Active ===' &&
+             echo 'Diretório de logs montado em modo somente leitura (read-only).' &&
+             touch /var/log/zyconomes/intercorrencias_operacionais.txt 2>/dev/null || true &&
+             tail -n 50 -f /var/log/zyconomes/intercorrencias_operacionais.txt"
+    deploy:
+      resources:
+        limits:
+          memory: 32M
+          cpus: '0.1'

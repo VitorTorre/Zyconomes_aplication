@@ -1,8 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Sparkles, CheckCircle, ShieldCheck, Zap, ArrowLeft, Lock, Award } from 'lucide-react';
 import { PremiumButton } from '../components/PremiumButton';
+import { StripeCheckoutModal } from '../components/StripeCheckoutModal';
 
 export const PremiumPage: React.FC = () => {
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+
   return (
     <div className="min-h-[85vh] py-16 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
       <div className="mb-8">
@@ -92,6 +95,7 @@ export const PremiumPage: React.FC = () => {
               <span className="text-xs text-zinc-500">/ mês</span>
             </div>
 
+            {/* DESCRIÇÃO COMPLETA DOS BENEFÍCIOS DO PLANO PREMIUM */}
             <ul className="space-y-3.5 text-sm text-zinc-700 dark:text-zinc-300 mb-8">
               <li className="flex items-start gap-3">
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
@@ -120,14 +124,25 @@ export const PremiumPage: React.FC = () => {
             </ul>
           </div>
 
-          <PremiumButton />
+          {/* BOTÃO ASSINAR PLANO PREMIUM DISPOSTO EXCLUSIVAMENTE APÓS OS BENEFÍCIOS */}
+          <PremiumButton onOpenCheckout={() => setIsCheckoutOpen(true)} />
         </div>
       </div>
 
       <div className="mt-12 text-center text-xs text-zinc-500 dark:text-zinc-400 flex items-center justify-center gap-2">
         <ShieldCheck className="w-4 h-4 text-emerald-500" />
-        <span>Pagamento seguro e criptografado processado pelo Stripe. Cancele quando quiser.</span>
+        <span>Pagamento seguro e criptografado processado pelo Stripe via Cartão ou PIX. Cancele quando quiser.</span>
       </div>
+
+      {/* MODAL DE CHECKOUT STRIPE (CARTÃO DE CRÉDITO, CARTÃO DE DÉBITO, PIX) */}
+      <StripeCheckoutModal
+        isOpen={isCheckoutOpen}
+        onClose={() => setIsCheckoutOpen(false)}
+        onSuccess={() => {
+          setIsCheckoutOpen(false);
+          window.location.hash = 'sucesso';
+        }}
+      />
     </div>
   );
 };

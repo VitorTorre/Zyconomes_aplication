@@ -7,6 +7,7 @@ interface PremiumButtonProps {
   label?: string;
   variant?: 'primary' | 'outline' | 'compact' | 'gold';
   showSecurityBadge?: boolean;
+  onOpenCheckout?: () => void;
 }
 
 export const PremiumButton: React.FC<PremiumButtonProps> = ({
@@ -14,14 +15,12 @@ export const PremiumButton: React.FC<PremiumButtonProps> = ({
   label = 'Assinar Zyconomes Premium — R$ 19,90/mês',
   variant = 'primary',
   showSecurityBadge = true,
+  onOpenCheckout,
 }) => {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleUpgrade = async () => {
-    setLoading(true);
-    setErrorMsg(null);
-
     // Monitora conversão na jornada do usuário
     trackCheckoutStarted('Zyconomes Premium', 19.90, { trigger: 'premium_button' });
     trackConversionEvent('checkout_started', {
@@ -29,6 +28,14 @@ export const PremiumButton: React.FC<PremiumButtonProps> = ({
       value: 19.90,
       currency: 'BRL',
     });
+
+    if (onOpenCheckout) {
+      onOpenCheckout();
+      return;
+    }
+
+    setLoading(true);
+    setErrorMsg(null);
 
     try {
       const token = localStorage.getItem('zyc_auth_token');

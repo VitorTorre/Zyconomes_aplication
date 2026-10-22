@@ -3,6 +3,7 @@ import { adminAuth } from '../lib/firebase-admin.ts';
 import { DecodedIdToken } from 'firebase-admin/auth';
 import { getOrCreateUser } from '../db/users.ts';
 import { LRUCache } from 'lru-cache';
+import { isTokenRevoked, revokeToken, getRevocationLedgerStats } from './tokenRevocation.ts';
 
 // Cache LRU: máx 10.000 usuários, TTL de 5 minutos
 const userCache = new LRUCache<string, any>({
@@ -113,6 +114,14 @@ export const requireAuth = async (
   if (!token || token === 'null' || token === 'undefined' || token === '""') {
     return res.status(401).json({ error: 'Unauthorized: Invalid token format' });
   }
+
+  // 0. Bloqueio instantâneo em todos os endpoints para tokens revogados (Blacklist O(1))
+  if (isTokenRevoked(token)) {
+    return res.status(401).json({ 
+      error: 'Unauthorized: Token has been revoked across all endpoints',
+      code: 'auth/token-revoked' 
+    });
+  }
   
   // 1. Strict demo token isolation: strictly forbidden in production or unless explicitly enabled
   const isDemo = isDemoTokenAllowed(token);
@@ -155,6 +164,14 @@ export const requireAuth = async (
     const decodedToken = await adminAuth.verifyIdToken(token);
     const uid = decodedToken.uid;
     req.user = decodedToken;
+
+    // Verificação de revogação por timestamp de sessão ou UID
+    if (isTokenRevoked(token, uid, decodedToken.iat)) {
+      return res.status(401).json({ 
+        error: 'Unauthorized: Session has been terminated across all endpoints',
+        code: 'auth/session-terminated' 
+      });
+    }
     
     // 1. Tenta cache em memória primeiro ou busca coalescida evitando sobrecarga no banco de dados
     let dbUser: any = null;
@@ -186,3 +203,6 @@ export const requireAuth = async (
 export function invalidateUserCache(uid: string) {
   userCache.delete(uid);
 }
+
+// Re-exporta utilitários de revogação para uso nos endpoints de autenticação e logout
+export { revokeToken, isTokenRevoked, getRevocationLedgerStats };

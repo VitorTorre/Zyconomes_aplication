@@ -24,6 +24,9 @@ import {
   activatePermanentPremiumCockpit, 
   verifyPermanentPremiumCockpit 
 } from '../services/zyconomesIsoComplianceManager';
+import { AtomicErrorBoundary } from './AtomicErrorBoundary';
+import { recordStableSnapshot } from '../lib/selfHealingEngine';
+import { safeMonetaryInput, safeParseNumber } from '../lib/inputEncapsulator';
 
 export const FinanceCalculators: React.FC = () => {
   // --- STATE PERSISTENCE ---
@@ -715,13 +718,31 @@ export const FinanceCalculators: React.FC = () => {
 
           <div className="w-full lg:w-2/3">
             <div id="print-area" className="bg-white border border-zinc-200 p-6 sm:p-10 rounded-3xl shadow-sm min-h-[500px]">
-              
+              <AtomicErrorBoundary
+                moduleName={activeTool.name}
+                capturedInputs={{ income, expenses, savings, monthlyContribution, interestRate, years, loanAmount, loanRate, loanYears, currentWealth, targetWealth }}
+                onAutoRecover={(stableState) => {
+                  if (stableState) {
+                    if (stableState.income !== undefined) setIncome(stableState.income);
+                    if (stableState.expenses !== undefined) setExpenses(stableState.expenses);
+                    if (stableState.savings !== undefined) setSavings(stableState.savings);
+                  }
+                }}
+              >
               {selectedService === 1 && (
                 <div className="animate-in fade-in slide-in-from-right-4 duration-500">
-                  <div className="flex justify-between items-center mb-6">
+                  <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-6">
                     <div className="flex items-center gap-3">
                       <div className="bg-emerald-100 p-2 rounded-lg"><Activity className="w-6 h-6 text-emerald-600" /></div>
-                      <h2 className="text-2xl font-black text-zinc-900">Diagnóstico Financeiro</h2>
+                      <div>
+                        <h2 className="text-2xl font-black text-zinc-900">Diagnóstico Financeiro</h2>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            Recálculo Local Instantâneo
+                          </span>
+                        </div>
+                      </div>
                     </div>
                     
                     <div className="flex items-center gap-2">
@@ -731,6 +752,7 @@ export const FinanceCalculators: React.FC = () => {
                         </span>
                       )}
                       <button 
+                        type="button"
                         onClick={() => {
                           setIncome(15000);
                           setExpenses(9500);
@@ -744,20 +766,62 @@ export const FinanceCalculators: React.FC = () => {
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+                  <form onSubmit={(e) => { e.preventDefault(); e.stopPropagation(); }} className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Renda Mensal (R$)</label>
-                      <input type="number" value={income} onChange={(e) => setIncome(Number(e.target.value))} onBlur={() => trackFieldFill('Renda Mensal')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:border-[#1A1F71] focus:ring-1 focus:ring-[#1A1F71] bg-zinc-50 font-mono text-lg" />
+                      <input 
+                        type="number" 
+                        value={income} 
+                        onChange={(e) => { 
+                          e.stopPropagation(); 
+                          const val = safeMonetaryInput(e.target.value, 'income', income);
+                          setIncome(val);
+                          recordStableSnapshot('Diagnóstico Financeiro', { income: val, expenses, savings });
+                        }} 
+                        onBlur={() => {
+                          trackFieldFill('Renda Mensal');
+                          recordStableSnapshot('Diagnóstico Financeiro', { income, expenses, savings });
+                        }} 
+                        className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:border-[#1A1F71] focus:ring-1 focus:ring-[#1A1F71] bg-zinc-50 font-mono text-lg" 
+                      />
                     </div>
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Despesas Mensais (R$)</label>
-                      <input type="number" value={expenses} onChange={(e) => setExpenses(Number(e.target.value))} onBlur={() => trackFieldFill('Despesas Mensais')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:border-[#1A1F71] focus:ring-1 focus:ring-[#1A1F71] bg-zinc-50 font-mono text-lg" />
+                      <input 
+                        type="number" 
+                        value={expenses} 
+                        onChange={(e) => { 
+                          e.stopPropagation(); 
+                          const val = safeMonetaryInput(e.target.value, 'expenses', expenses);
+                          setExpenses(val);
+                          recordStableSnapshot('Diagnóstico Financeiro', { income, expenses: val, savings });
+                        }} 
+                        onBlur={() => {
+                          trackFieldFill('Despesas Mensais');
+                          recordStableSnapshot('Diagnóstico Financeiro', { income, expenses, savings });
+                        }} 
+                        className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:border-[#1A1F71] focus:ring-1 focus:ring-[#1A1F71] bg-zinc-50 font-mono text-lg" 
+                      />
                     </div>
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Reserva Atual (R$)</label>
-                      <input type="number" value={savings} onChange={(e) => setSavings(Number(e.target.value))} onBlur={() => trackFieldFill('Reserva Atual')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:border-[#1A1F71] focus:ring-1 focus:ring-[#1A1F71] bg-zinc-50 font-mono text-lg" />
+                      <input 
+                        type="number" 
+                        value={savings} 
+                        onChange={(e) => { 
+                          e.stopPropagation(); 
+                          const val = safeMonetaryInput(e.target.value, 'savings', savings);
+                          setSavings(val);
+                          recordStableSnapshot('Diagnóstico Financeiro', { income, expenses, savings: val });
+                        }} 
+                        onBlur={() => {
+                          trackFieldFill('Reserva Atual');
+                          recordStableSnapshot('Diagnóstico Financeiro', { income, expenses, savings });
+                        }} 
+                        className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:border-[#1A1F71] focus:ring-1 focus:ring-[#1A1F71] bg-zinc-50 font-mono text-lg" 
+                      />
                     </div>
-                  </div>
+                  </form>
 
                   <div className="bg-zinc-950 text-white rounded-2xl p-6 sm:p-8">
                     <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-6">Diagnóstico do Fluxo de Caixa</h3>
@@ -789,29 +853,39 @@ export const FinanceCalculators: React.FC = () => {
 
               {selectedService === 2 && (
                 <div className="animate-in fade-in slide-in-from-right-4 duration-500">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="bg-blue-100 p-2 rounded-lg"><TrendingUp className="w-6 h-6 text-blue-600" /></div>
-                    <h2 className="text-2xl font-black text-zinc-900">Juros Compostos</h2>
+                  <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-6">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-blue-100 p-2 rounded-lg"><TrendingUp className="w-6 h-6 text-blue-600" /></div>
+                      <div>
+                        <h2 className="text-2xl font-black text-zinc-900">Juros Compostos</h2>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                            Recálculo Local Instantâneo
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
+                  <form onSubmit={(e) => { e.preventDefault(); e.stopPropagation(); }} className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Valor Inicial (R$)</label>
-                      <input type="number" value={savings} onChange={(e) => setSavings(Number(e.target.value))} onBlur={() => trackFieldFill('Valor Inicial')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:border-[#1A1F71] bg-zinc-50 font-mono text-lg" />
+                      <input type="number" value={savings} onChange={(e) => { e.stopPropagation(); setSavings(Number(e.target.value)); }} onBlur={() => trackFieldFill('Valor Inicial')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:border-[#1A1F71] bg-zinc-50 font-mono text-lg" />
                     </div>
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Aporte Mensal (R$)</label>
-                      <input type="number" value={monthlyContribution} onChange={(e) => setMonthlyContribution(Number(e.target.value))} onBlur={() => trackFieldFill('Aporte Mensal')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:border-[#1A1F71] bg-zinc-50 font-mono text-lg" />
+                      <input type="number" value={monthlyContribution} onChange={(e) => { e.stopPropagation(); setMonthlyContribution(Number(e.target.value)); }} onBlur={() => trackFieldFill('Aporte Mensal')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:border-[#1A1F71] bg-zinc-50 font-mono text-lg" />
                     </div>
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Taxa de Juros Anual (%)</label>
-                      <input type="number" value={interestRate} onChange={(e) => setInterestRate(Number(e.target.value))} onBlur={() => trackFieldFill('Taxa de Juros')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:border-[#1A1F71] bg-zinc-50 font-mono text-lg" />
+                      <input type="number" value={interestRate} onChange={(e) => { e.stopPropagation(); setInterestRate(Number(e.target.value)); }} onBlur={() => trackFieldFill('Taxa de Juros')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:border-[#1A1F71] bg-zinc-50 font-mono text-lg" />
                     </div>
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Tempo (Anos)</label>
-                      <input type="number" value={years} onChange={(e) => setYears(Number(e.target.value))} onBlur={() => trackFieldFill('Tempo em Anos')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:border-[#1A1F71] bg-zinc-50 font-mono text-lg" />
+                      <input type="number" value={years} onChange={(e) => { e.stopPropagation(); setYears(Number(e.target.value)); }} onBlur={() => trackFieldFill('Tempo em Anos')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:border-[#1A1F71] bg-zinc-50 font-mono text-lg" />
                     </div>
-                  </div>
+                  </form>
 
                   <div className="bg-[#1A1F71] text-white rounded-t-2xl p-6 sm:p-8">
                      <h3 className="text-sm font-bold uppercase tracking-widest text-blue-200 mb-2">Montante Final Estimado</h3>
@@ -859,21 +933,31 @@ export const FinanceCalculators: React.FC = () => {
               {/* Other tools follow the exact same pattern, abbreviated for brevity but keeping functionality intact. */}
               {selectedService === 3 && (
                 <div className="animate-in fade-in slide-in-from-right-4 duration-500">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="bg-amber-100 p-2 rounded-lg"><ShieldCheck className="w-6 h-6 text-amber-600" /></div>
-                    <h2 className="text-2xl font-black text-zinc-900">Reserva de Emergência</h2>
+                  <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-6">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-amber-100 p-2 rounded-lg"><ShieldCheck className="w-6 h-6 text-amber-600" /></div>
+                      <div>
+                        <h2 className="text-2xl font-black text-zinc-900">Reserva de Emergência</h2>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                            Recálculo Local Instantâneo
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   {/* ... inputs for Tool 3 ... */}
-                  <div className="grid grid-cols-1 gap-6 mb-8">
+                  <form onSubmit={(e) => { e.preventDefault(); e.stopPropagation(); }} className="grid grid-cols-1 gap-6 mb-8">
                      <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Custo Essencial Mensal (R$)</label>
-                      <input type="number" value={expenses} onChange={(e) => setExpenses(Number(e.target.value))} onBlur={() => trackFieldFill('Custo Mensal (RE)')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-zinc-50 font-mono text-lg" />
+                      <input type="number" value={expenses} onChange={(e) => { e.stopPropagation(); setExpenses(Number(e.target.value)); }} onBlur={() => trackFieldFill('Custo Mensal (RE)')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-zinc-50 font-mono text-lg" />
                     </div>
                      <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Valor Já Guardado (R$)</label>
-                      <input type="number" value={savings} onChange={(e) => setSavings(Number(e.target.value))} onBlur={() => trackFieldFill('Valor Guardado (RE)')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-zinc-50 font-mono text-lg" />
+                      <input type="number" value={savings} onChange={(e) => { e.stopPropagation(); setSavings(Number(e.target.value)); }} onBlur={() => trackFieldFill('Valor Guardado (RE)')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-zinc-50 font-mono text-lg" />
                     </div>
-                  </div>
+                  </form>
                   <div className="bg-zinc-950 text-white rounded-2xl p-6 sm:p-8">
                      <div className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-2">Meta de Segurança (6 Meses)</div>
                      <div className="text-3xl font-black mb-4">{safeNumber(emergencyReserveTarget).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
@@ -907,7 +991,15 @@ export const FinanceCalculators: React.FC = () => {
                   <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
                     <div className="flex items-center gap-3">
                       <div className="bg-purple-100 p-2 rounded-lg"><LucidePieChart className="w-6 h-6 text-purple-600" /></div>
-                      <h2 className="text-2xl font-black text-zinc-900">Independência Financeira (Fator Tempo)</h2>
+                      <div>
+                        <h2 className="text-2xl font-black text-zinc-900">Independência Financeira (Fator Tempo)</h2>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-full">
+                            <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse"></span>
+                            Recálculo Local Instantâneo
+                          </span>
+                        </div>
+                      </div>
                     </div>
 
                     <button
@@ -921,24 +1013,24 @@ export const FinanceCalculators: React.FC = () => {
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
+                  <form onSubmit={(e) => { e.preventDefault(); e.stopPropagation(); }} className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Patrimônio Atual (R$)</label>
-                      <input type="number" value={currentWealth} onChange={(e) => setCurrentWealth(Number(e.target.value))} onBlur={() => trackFieldFill('Patrimônio Atual')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-zinc-50 font-mono text-lg" />
+                      <input type="number" value={currentWealth} onChange={(e) => { e.stopPropagation(); setCurrentWealth(Number(e.target.value)); }} onBlur={() => trackFieldFill('Patrimônio Atual')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-zinc-50 font-mono text-lg" />
                     </div>
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Meta Patrimonial (R$)</label>
-                      <input type="number" value={targetWealth} onChange={(e) => setTargetWealth(Number(e.target.value))} onBlur={() => trackFieldFill('Meta Patrimônio')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-zinc-50 font-mono text-lg" />
+                      <input type="number" value={targetWealth} onChange={(e) => { e.stopPropagation(); setTargetWealth(Number(e.target.value)); }} onBlur={() => trackFieldFill('Meta Patrimônio')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-zinc-50 font-mono text-lg" />
                     </div>
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Aporte Mensal (R$)</label>
-                      <input type="number" value={wealthContribution} onChange={(e) => setWealthContribution(Number(e.target.value))} onBlur={() => trackFieldFill('Aporte Independência')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-zinc-50 font-mono text-lg" />
+                      <input type="number" value={wealthContribution} onChange={(e) => { e.stopPropagation(); setWealthContribution(Number(e.target.value)); }} onBlur={() => trackFieldFill('Aporte Independência')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-zinc-50 font-mono text-lg" />
                     </div>
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Taxa Real Líquida Anual (%)</label>
-                      <input type="number" value={wealthRate} onChange={(e) => setWealthRate(Number(e.target.value))} onBlur={() => trackFieldFill('Taxa Independência')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-zinc-50 font-mono text-lg" />
+                      <input type="number" value={wealthRate} onChange={(e) => { e.stopPropagation(); setWealthRate(Number(e.target.value)); }} onBlur={() => trackFieldFill('Taxa Independência')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-zinc-50 font-mono text-lg" />
                     </div>
-                  </div>
+                  </form>
 
                   <div className="bg-purple-950 text-white rounded-2xl p-6 sm:p-8">
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
@@ -974,12 +1066,16 @@ export const FinanceCalculators: React.FC = () => {
                           <Layers className="w-6 h-6" />
                         </div>
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <h2 className="text-2xl font-black text-zinc-900 tracking-tight">
                               Alocação de Ativos & Setup Institucional
                             </h2>
                             <span className="text-[10px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-800 px-2.5 py-0.5 rounded-full flex items-center gap-1">
                               <Sparkles className="w-3 h-3" /> Padrão High Net Worth
+                            </span>
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                              Recálculo Local Instantâneo
                             </span>
                           </div>
                           <p className="text-sm text-zinc-500 mt-0.5">
@@ -1115,7 +1211,7 @@ export const FinanceCalculators: React.FC = () => {
                   )}
 
                   {/* Input de Montante a Alocar com Atalhos */}
-                  <div className="bg-zinc-50 border border-zinc-200/90 rounded-2xl p-5">
+                  <form onSubmit={(e) => { e.preventDefault(); e.stopPropagation(); }} className="bg-zinc-50 border border-zinc-200/90 rounded-2xl p-5">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
                       <div>
                         <label className="text-xs font-bold uppercase tracking-wider text-zinc-700 block">
@@ -1139,7 +1235,7 @@ export const FinanceCalculators: React.FC = () => {
                         <input
                           type="number"
                           value={aiAmount}
-                          onChange={(e) => setAiAmount(Math.max(1000, Number(e.target.value) || 0))}
+                          onChange={(e) => { e.stopPropagation(); setAiAmount(Math.max(1000, Number(e.target.value) || 0)); }}
                           className="w-full pl-12 pr-4 py-3 rounded-xl border border-zinc-200 bg-white font-mono text-lg font-bold text-zinc-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                           placeholder="100000"
                         />
@@ -1169,7 +1265,7 @@ export const FinanceCalculators: React.FC = () => {
                         ))}
                       </div>
                     </div>
-                  </div>
+                  </form>
 
                   {/* Key Institutional Metrics Banner */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -1567,26 +1663,19 @@ export const FinanceCalculators: React.FC = () => {
                     </div>
                   </div>
 
-                  {activeTool.id === 7 ? (
-                    <div className="space-y-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          activatePermanentPremiumCockpit('Investidor Fiduciário Zyconomes (Licença Permanente)');
-                          setUserTier('premium');
-                        }}
-                        className="w-full bg-gradient-to-r from-emerald-600 via-teal-700 to-indigo-900 hover:from-emerald-500 hover:to-indigo-800 text-white font-bold py-3.5 px-6 rounded-2xl text-sm flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all cursor-pointer border border-emerald-400/40"
-                      >
-                        <Sparkles className="w-4 h-4 text-amber-300" />
-                        <span>Transferir Cockpit Agente IA para Plano Premium Permanente (Conformidade ISO)</span>
-                      </button>
-                      <div className="text-center">
-                        <PremiumButton label="Ou Assinar Todas as Ferramentas — R$ 19,90/mês" />
-                      </div>
-                    </div>
-                  ) : (
-                    <PremiumButton label="Desbloquear Todas as Ferramentas — R$ 19,90/mês" />
-                  )}
+                  <div className="space-y-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.location.hash = 'premium';
+                      }}
+                      className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-zinc-950 font-black py-4 px-6 rounded-2xl text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      <span>Conhecer Benefícios e Assinar Plano Premium (R$ 19,90/mês)</span>
+                      <ArrowRight className="w-4 h-4 ml-1" />
+                    </button>
+                  </div>
                   <div className="mt-4 text-xs text-zinc-400">
                     Acesso permanente certificado sob ISO 42001, ISO 27001, ISO 27701 e ISO 25010.
                   </div>
@@ -1606,6 +1695,7 @@ export const FinanceCalculators: React.FC = () => {
                 </button>
               </div>
 
+              </AtomicErrorBoundary>
             </div>
           </div>
         </div>
