@@ -1211,9 +1211,30 @@ Esta pauta formaliza a síntese da estabilidade, usabilidade e blindagem cibern�
 
 ---
 
+### 29. Pauta de Gating Fiduciário da Seção de Algoritmos (RBAC & Heurísticas de Nielsen) e Purificação de Navegação
+
+Esta pauta formaliza o aprimoramento da interface em estrita conformidade com as 10 Heurísticas de Usabilidade de Jakob Nielsen e o princípio de controle de acesso baseado em papéis (RBAC):
+
+#### 29.1. Purificação Visual de Navegação (Heurística #8: Design Estético e Minimalista)
+- **Remoção de Elementos Invasivos do Cabeçalho:**
+  - Remoção dos botões de ação no cabeçalho (*Tour* e *Split-View*), eliminando sobrecarga sensorial e dispersão cognitiva na barra superior de navegação.
+  - A funcionalidade do Split-View segue disponível no drawer de ferramentas contextuais e eventos locais; o Tour Guiado opera silenciosamente via `<OnboardingTour />` para novos visitantes sem necessidade de botões redundantes na barra de ferramentas.
+
+#### 29.2. Gating da Seção "Algoritmos" para Classes Administrativas
+- **Controle de Acesso Fiduciário (`isAlgorithmAuditorRole`):**
+  - A exibição do link de navegação **"Algoritmos"** (desktop e drawer mobile), da âncora `#fluxogramas` e do compilador interativo de fluxogramas (`AlgorithmFlowchartEngine.tsx`) é condicionada às classes privilegiadas:
+    1. `"superadmins"` / `"super_admin"`
+    2. `"superdesenvolvedoradmin"` / `"super_developer"`
+    3. `"admins"` / `"admin"`
+- **Conformidade com Heurísticas #5 (Prevenção de Erros) e #9 (Ajuda e Diagnóstico de Erros):**
+  - Para usuários públicos ou investidores comuns, o compilador de algoritmos não é exibido na página inicial, evitando distração técnica enquanto a experiência do usuário passa por refinamento de consistência.
+  - Caso um usuário não autorizado tente navegar diretamente via URL para `#fluxogramas`, a aplicação apresenta uma mensagem educativa digna e clara, oferecendo retorno imediato com 1 clique para as ferramentas financeiras livres.
+
+---
+
 **Licença:** Proprietário / Zyconomes Architecture Systems  
 **Engenheiro Responsável:** Vitor Torres (Zyconomes Lead Engineer)  
-**Status Operacional:** Produção / Build Verificado / 125 Testes Aprovados (23/23 Suítes 100% Verdes) / Pautas 1 a 28 Documentadas / Conformidade ISO 42001, 27001, 27701, 25010, 9001, 22301, 9241-11, LGPD, Registro.br e WCAG 2.1 AA
+**Status Operacional:** Produção / Build Verificado / 131 Testes Aprovados (23/23 Suítes 100% Verdes) / Pautas 1 a 29 Documentadas / Conformidade ISO 42001, 27001, 27701, 25010, 9001, 22301, 9241-11, Nielsen 10 Heuristics, LGPD, Registro.br e WCAG 2.1 AA
 
 Seção das dicas de uso da plataforma:
 

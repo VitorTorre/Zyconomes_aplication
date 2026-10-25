@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Menu, X, ArrowRight, Activity, Code2, UserCircle, ChevronDown, Calculator, ShieldCheck, TrendingUp, PieChart, BookOpen, Layers, Shield, Search, WifiOff, Sun, Moon, Bot, Sparkles, ArrowLeftRight, Lock, Workflow, GitFork, Compass } from 'lucide-react';
+import { Menu, X, ArrowRight, Activity, Code2, UserCircle, ChevronDown, Calculator, ShieldCheck, TrendingUp, PieChart, BookOpen, Layers, Shield, Search, WifiOff, Sun, Moon, Bot, Sparkles, Lock, Workflow } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { FinanceCalculators } from './FinanceCalculators';
 import { AlgorithmFlowchartEngine } from './AlgorithmFlowchartEngine';
@@ -80,6 +80,22 @@ const parseCurrentRoute = (): { view: ViewType; articleId: string } => {
   return { view: 'home', articleId: 'juros-compostos' };
 };
 
+// Função fiduciária para validação de acesso restrito à seção de Algoritmos (Heurísticas de Nielsen)
+export const isAlgorithmAuditorRole = (role?: string | null): boolean => {
+  if (!role) return false;
+  const normalized = role.toLowerCase().replace(/[-_ ]/g, '');
+  return [
+    'admin',
+    'admins',
+    'superadmin',
+    'superadmins',
+    'superdesenvolvedoradmin',
+    'superdeveloperadmin',
+    'superdeveloper',
+    'securityadmin'
+  ].includes(normalized);
+};
+
 export const FinanceTemplate: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showInvestorArea, setShowInvestorArea] = useState(false);
@@ -117,6 +133,17 @@ export const FinanceTemplate: React.FC = () => {
     try {
       const role = (localStorage.getItem('zyc_user_role') || '').toLowerCase();
       return ['admin', 'super_admin', 'super_developer', 'security_admin', 'dev'].includes(role);
+    } catch {
+      return false;
+    }
+  });
+
+  // Acesso à Seção e Compilador de Algoritmos restrito a superadmins, superdesenvolvedoradmin e admins
+  const [canViewAlgorithms, setCanViewAlgorithms] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      const role = localStorage.getItem('zyc_user_role') || '';
+      return isAlgorithmAuditorRole(role);
     } catch {
       return false;
     }
@@ -167,10 +194,12 @@ export const FinanceTemplate: React.FC = () => {
         const role = (localStorage.getItem('zyc_user_role') || '').toLowerCase();
         setIsPremium(tier === 'premium' || ['admin', 'super_admin', 'super_developer', 'security_admin'].includes(role));
         setIsAdminUser(['admin', 'super_admin', 'super_developer', 'security_admin', 'dev'].includes(role));
+        setCanViewAlgorithms(isAlgorithmAuditorRole(role));
       } catch {
         setIsLoggedIn(false);
         setIsPremium(false);
         setIsAdminUser(false);
+        setCanViewAlgorithms(false);
       }
     };
 
@@ -430,20 +459,22 @@ export const FinanceTemplate: React.FC = () => {
             <button onClick={() => navigateTo('contact')} className="text-zinc-600 hover:text-[#1A1F71] dark:text-zinc-200 dark:hover:text-sky-400 transition-colors py-2 cursor-pointer">
               Contato
             </button>
-            <button 
-              onClick={() => {
-                if (currentView === 'home') {
-                  scrollToSection('fluxogramas');
-                } else {
-                  navigateTo('fluxogramas');
-                }
-              }}
-              className="text-zinc-600 hover:text-[#1A1F71] dark:text-zinc-200 dark:hover:text-sky-400 transition-colors py-2 flex items-center gap-1.5 cursor-pointer font-medium"
-              title="Fluxogramas e Compilador de Algoritmos"
-            >
-              <Workflow className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <span>Algoritmos</span>
-            </button>
+            {canViewAlgorithms && (
+              <button 
+                onClick={() => {
+                  if (currentView === 'home') {
+                    scrollToSection('fluxogramas');
+                  } else {
+                    navigateTo('fluxogramas');
+                  }
+                }}
+                className="text-zinc-600 hover:text-[#1A1F71] dark:text-zinc-200 dark:hover:text-sky-400 transition-colors py-2 flex items-center gap-1.5 cursor-pointer font-medium"
+                title="Fluxogramas e Compilador de Algoritmos (Restrito: Superadmin / Dev / Admin)"
+              >
+                <Workflow className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span>Algoritmos</span>
+              </button>
+            )}
             <button id="botao-premium" onClick={() => navigateTo('premium')} className="text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 font-bold py-2 flex items-center gap-1.5 transition-colors cursor-pointer">
               <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
               Premium
@@ -462,33 +493,6 @@ export const FinanceTemplate: React.FC = () => {
               <Search className="w-4 h-4" />
               <span className="flex-1 text-zinc-500 dark:text-zinc-300">Buscar...</span>
               <span className="text-[10px] font-mono font-bold bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-1.5 py-0.5 rounded text-zinc-400 group-hover:border-zinc-300 dark:group-hover:border-zinc-600">Ctrl+K</span>
-            </button>
-
-            <button
-              onClick={() => {
-                if (currentView !== 'home') {
-                  navigateTo('home');
-                  setTimeout(() => {
-                    window.dispatchEvent(new CustomEvent('zyc_start_onboarding_tour'));
-                  }, 400);
-                } else {
-                  window.dispatchEvent(new CustomEvent('zyc_start_onboarding_tour'));
-                }
-              }}
-              className="p-2 text-zinc-600 hover:text-[#1A1F71] dark:text-zinc-200 dark:hover:text-white bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-full transition-colors flex items-center gap-1.5 px-3 text-xs font-bold cursor-pointer"
-              title="Iniciar Tour Guiado pela Plataforma"
-            >
-              <Compass className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-              <span>Tour</span>
-            </button>
-
-            <button
-              onClick={() => setSplitViewOpen(true)}
-              className="p-2 text-zinc-600 hover:text-[#1A1F71] dark:text-zinc-200 dark:hover:text-white bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-full transition-colors flex items-center gap-1.5 px-3 text-xs font-bold cursor-pointer"
-              title="Comparar Cenários Salvos (Split-View)"
-            >
-              <ArrowLeftRight className="w-3.5 h-3.5 text-blue-600 dark:text-sky-400" />
-              <span>Split-View</span>
             </button>
 
             <button
@@ -540,27 +544,12 @@ export const FinanceTemplate: React.FC = () => {
             <button onClick={() => scrollToSection('blog')} className="w-full text-left block px-3 py-3 rounded-md text-base font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer">Blog</button>
             <button onClick={() => navigateTo('about')} className="w-full text-left block px-3 py-3 rounded-md text-base font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer">Sobre</button>
             <button onClick={() => navigateTo('contact')} className="w-full text-left block px-3 py-3 rounded-md text-base font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer">Contato</button>
-            <button onClick={() => { scrollToSection('fluxogramas'); setMobileMenuOpen(false); }} className="w-full text-left flex items-center gap-2 px-3 py-3 rounded-md text-base font-medium text-emerald-600 dark:text-emerald-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer">
-              <Workflow className="w-4 h-4" />
-              <span>Fluxogramas dos Algoritmos</span>
-            </button>
-            <button 
-              onClick={() => { 
-                setMobileMenuOpen(false);
-                if (currentView !== 'home') {
-                  navigateTo('home');
-                  setTimeout(() => {
-                    window.dispatchEvent(new CustomEvent('zyc_start_onboarding_tour'));
-                  }, 400);
-                } else {
-                  window.dispatchEvent(new CustomEvent('zyc_start_onboarding_tour'));
-                }
-              }} 
-              className="w-full text-left flex items-center gap-2 px-3 py-3 rounded-md text-base font-medium text-indigo-600 dark:text-indigo-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer"
-            >
-              <Compass className="w-4 h-4" />
-              <span>Fazer Tour Guiado</span>
-            </button>
+            {canViewAlgorithms && (
+              <button onClick={() => { scrollToSection('fluxogramas'); setMobileMenuOpen(false); }} className="w-full text-left flex items-center gap-2 px-3 py-3 rounded-md text-base font-medium text-emerald-600 dark:text-emerald-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer">
+                <Workflow className="w-4 h-4" />
+                <span>Fluxogramas dos Algoritmos</span>
+              </button>
+            )}
             <button onClick={() => navigateTo('premium')} className="w-full text-left flex items-center gap-2 px-3 py-3 rounded-md text-base font-bold text-amber-600 dark:text-amber-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer">
               <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
               <span>Plano Premium</span>
@@ -712,10 +701,12 @@ export const FinanceTemplate: React.FC = () => {
                     <FinanceCalculators />
                   </section>
 
-                  {/* FLUXOGRAMAS DE ALGORITMOS - COMPILADOR & ENGENHARIA */}
-                  <div id="fluxogramas" className="scroll-mt-20">
-                    <AlgorithmFlowchartEngine />
-                  </div>
+                  {/* FLUXOGRAMAS DE ALGORITMOS - COMPILADOR & ENGENHARIA (RESTRITO: SUPERADMINS/SUPERDEV/ADMINS) */}
+                  {canViewAlgorithms && (
+                    <div id="fluxogramas" className="scroll-mt-20">
+                      <AlgorithmFlowchartEngine />
+                    </div>
+                  )}
 
                   {/* BLOG SEO (SSG) */}
                   <section id="blog" className="bg-zinc-50 dark:bg-[#0a0a0a] border-t border-zinc-200 dark:border-zinc-800 scroll-mt-20 transition-colors">
@@ -779,7 +770,31 @@ export const FinanceTemplate: React.FC = () => {
               {currentView === 'admin' && <AdminDashboard />}
               {currentView === 'sucesso' && <Sucesso />}
               {currentView === 'premium' && <PremiumPage />}
-              {currentView === 'fluxogramas' && <AlgorithmFlowchartEngine />}
+              {currentView === 'fluxogramas' && (
+                canViewAlgorithms ? (
+                  <AlgorithmFlowchartEngine />
+                ) : (
+                  <div className="max-w-3xl mx-auto my-20 p-8 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-center space-y-4">
+                    <div className="w-12 h-12 mx-auto rounded-full bg-amber-100 dark:bg-amber-950/60 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                      <Workflow className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-xl font-bold text-zinc-900 dark:text-white">
+                      Seção de Algoritmos em Revisão de Usabilidade
+                    </h3>
+                    <p className="text-sm text-zinc-600 dark:text-zinc-300 max-w-lg mx-auto leading-relaxed">
+                      Os diagramas e fluxogramas detalhados de algoritmos estão provisoriamente restritos às classes de governança e engenharia (<strong>superadmins</strong>, <strong>superdesenvolvedoradmin</strong> e <strong>admins</strong>) enquanto passam por refinamento em conformidade com as 10 Heurísticas de Nielsen.
+                    </p>
+                    <div className="pt-2">
+                      <button
+                        onClick={() => { navigateTo('home'); setTimeout(() => scrollToSection('ferramentas'), 100); }}
+                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#1A1F71] dark:bg-sky-600 text-white text-sm font-semibold rounded-full hover:opacity-90 transition-opacity cursor-pointer"
+                      >
+                        Voltar para Ferramentas Gratuitas
+                      </button>
+                    </div>
+                  </div>
+                )
+              )}
             </motion.div>
         </AnimatePresence>
       </main>
@@ -807,8 +822,9 @@ export const FinanceTemplate: React.FC = () => {
               <h4 className="text-white font-bold mb-4 uppercase text-xs tracking-widest">Plataforma</h4>
               <ul className="space-y-3 text-sm">
                 <li><button onClick={() => scrollToSection('ferramentas')} className="hover:text-emerald-400 transition-colors">Ferramentas Livres</button></li>
-                <li><button onClick={() => { if (currentView === 'home') { scrollToSection('fluxogramas'); } else { navigateTo('fluxogramas'); } }} className="hover:text-emerald-400 transition-colors">Fluxogramas dos Algoritmos</button></li>
-                <li><button onClick={() => { if (currentView !== 'home') { navigateTo('home'); setTimeout(() => window.dispatchEvent(new CustomEvent('zyc_start_onboarding_tour')), 400); } else { window.dispatchEvent(new CustomEvent('zyc_start_onboarding_tour')); } }} className="hover:text-emerald-400 transition-colors flex items-center gap-1.5"><Compass className="w-3.5 h-3.5 text-indigo-400" /><span>Tour Guiado (Onboarding)</span></button></li>
+                {canViewAlgorithms && (
+                  <li><button onClick={() => { if (currentView === 'home') { scrollToSection('fluxogramas'); } else { navigateTo('fluxogramas'); } }} className="hover:text-emerald-400 transition-colors">Fluxogramas dos Algoritmos</button></li>
+                )}
                 <li><button onClick={() => navigateTo('login')} className="hover:text-emerald-400 transition-colors">Acessar Conta</button></li>
                 <li><button onClick={() => scrollToSection('blog')} className="hover:text-emerald-400 transition-colors">Educação e Blog</button></li>
               </ul>
