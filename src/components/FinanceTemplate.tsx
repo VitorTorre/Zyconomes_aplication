@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Menu, X, ArrowRight, Activity, Code2, UserCircle, ChevronDown, Calculator, ShieldCheck, TrendingUp, PieChart, BookOpen, Layers, Shield, Search, WifiOff, Sun, Moon, Bot, Sparkles, ArrowLeftRight, Lock } from 'lucide-react';
+import { Menu, X, ArrowRight, Activity, Code2, UserCircle, ChevronDown, Calculator, ShieldCheck, TrendingUp, PieChart, BookOpen, Layers, Shield, Search, WifiOff, Sun, Moon, Bot, Sparkles, ArrowLeftRight, Lock, Workflow, GitFork, Compass } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { FinanceCalculators } from './FinanceCalculators';
+import { AlgorithmFlowchartEngine } from './AlgorithmFlowchartEngine';
+import { OnboardingTour } from './OnboardingTour';
 import { InteractiveCockpitBanner } from './InteractiveCockpitBanner';
 import { SplitViewDrawer } from './SplitViewDrawer';
 import { ZyconomesExecutiveManifesto } from './ZyconomesExecutiveManifesto';
@@ -51,7 +53,7 @@ export const OfflineIndicator: React.FC = () => {
   );
 };
 
-type ViewType = 'home' | 'login' | 'about' | 'contact' | 'privacy' | 'terms' | 'admin' | 'sucesso' | 'premium' | 'artigo' | 'perfil';
+type ViewType = 'home' | 'login' | 'about' | 'contact' | 'privacy' | 'terms' | 'admin' | 'sucesso' | 'premium' | 'artigo' | 'perfil' | 'fluxogramas';
 
 const parseCurrentRoute = (): { view: ViewType; articleId: string } => {
   if (typeof window === 'undefined') {
@@ -68,7 +70,7 @@ const parseCurrentRoute = (): { view: ViewType; articleId: string } => {
       return { view: 'artigo', articleId };
     }
 
-    const validViews: ViewType[] = ['home', 'login', 'about', 'contact', 'privacy', 'terms', 'admin', 'sucesso', 'premium', 'perfil'];
+    const validViews: ViewType[] = ['home', 'login', 'about', 'contact', 'privacy', 'terms', 'admin', 'sucesso', 'premium', 'perfil', 'fluxogramas'];
     if (validViews.includes(cleanHash as ViewType)) {
       return { view: cleanHash as ViewType, articleId: 'juros-compostos' };
     }
@@ -331,7 +333,8 @@ export const FinanceTemplate: React.FC = () => {
     sucesso: 'Assinatura Confirmada',
     premium: 'Plano Premium',
     artigo: 'Artigo Educativo',
-    perfil: 'Meu Perfil & Informações'
+    perfil: 'Meu Perfil & Informações',
+    fluxogramas: 'Compilador & Fluxogramas de Algoritmos'
   };
 
   return (
@@ -343,7 +346,7 @@ export const FinanceTemplate: React.FC = () => {
           
           <div className="flex items-center gap-4">
             <button onClick={handleLogoClick} className="flex items-center outline-none cursor-pointer group" title="Ir para Página Inicial (Index)">
-              <span className="text-2xl font-black tracking-tighter text-[#1A1F71] group-hover:opacity-90 transition-opacity">ZYCONOMES</span>
+              <span className="text-2xl font-black tracking-tighter text-[#1A1F71] dark:text-sky-400 group-hover:opacity-90 transition-all dark:drop-shadow-[0_0_12px_rgba(56,189,248,0.35)]">ZYCONOMES</span>
               <span className="text-emerald-500 text-2xl font-black">.</span>
             </button>
             <SessionStabilityBadge forceAdmin={isAdminUser} />
@@ -354,30 +357,30 @@ export const FinanceTemplate: React.FC = () => {
             
             {/* Mega Menu: Ferramentas */}
             <div className="relative group">
-              <button onClick={() => scrollToSection('ferramentas')} className="text-zinc-600 hover:text-[#1A1F71] transition-colors flex items-center gap-1 py-2">
+              <button onClick={() => scrollToSection('ferramentas')} className="text-zinc-600 hover:text-[#1A1F71] dark:text-zinc-200 dark:hover:text-sky-400 transition-colors flex items-center gap-1 py-2 cursor-pointer">
                 Ferramentas <ChevronDown className="w-4 h-4 opacity-50 group-hover:rotate-180 transition-transform" />
               </button>
-              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-0 w-64 bg-white border border-zinc-200 rounded-2xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all p-3 grid grid-cols-1 gap-1 z-50">
-                <div className="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-2 px-3 pt-2">Gratuitas</div>
-                <button onClick={() => openTool(1)} className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 rounded-xl text-left w-full">
-                  <Activity className="w-4 h-4 text-[#1A1F71]" /> <span className="text-zinc-700 font-semibold">Diagnóstico Financeiro</span>
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-0 w-64 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all p-3 grid grid-cols-1 gap-1 z-50">
+                <div className="text-xs font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-2 px-3 pt-2">Gratuitas</div>
+                <button onClick={() => openTool(1)} className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/80 rounded-xl text-left w-full cursor-pointer">
+                  <Activity className="w-4 h-4 text-[#1A1F71] dark:text-sky-400" /> <span className="text-zinc-700 dark:text-zinc-100 font-semibold">Diagnóstico Financeiro</span>
                 </button>
-                <button onClick={() => openTool(2)} className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 rounded-xl text-left w-full">
-                  <TrendingUp className="w-4 h-4 text-blue-600" /> <span className="text-zinc-700 font-semibold">Juros Compostos</span>
+                <button onClick={() => openTool(2)} className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/80 rounded-xl text-left w-full cursor-pointer">
+                  <TrendingUp className="w-4 h-4 text-blue-600 dark:text-blue-400" /> <span className="text-zinc-700 dark:text-zinc-100 font-semibold">Juros Compostos</span>
                 </button>
-                <button onClick={() => openTool(3)} className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 rounded-xl text-left w-full">
-                  <ShieldCheck className="w-4 h-4 text-emerald-600" /> <span className="text-zinc-700 font-semibold">Reserva de Emergência</span>
+                <button onClick={() => openTool(3)} className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/80 rounded-xl text-left w-full cursor-pointer">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> <span className="text-zinc-700 dark:text-zinc-100 font-semibold">Reserva de Emergência</span>
                 </button>
-                <button onClick={() => openTool(4)} className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 rounded-xl text-left w-full">
-                  <Calculator className="w-4 h-4 text-red-600" /> <span className="text-zinc-700 font-semibold">Acelerador de Dívidas (SAC)</span>
+                <button onClick={() => openTool(4)} className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/80 rounded-xl text-left w-full cursor-pointer">
+                  <Calculator className="w-4 h-4 text-red-600 dark:text-red-400" /> <span className="text-zinc-700 dark:text-zinc-100 font-semibold">Acelerador de Dívidas (SAC)</span>
                 </button>
-                <button onClick={() => openTool(5)} className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 rounded-xl text-left w-full">
-                  <PieChart className="w-4 h-4 text-purple-600" /> <span className="text-zinc-700 font-semibold">Independência (Tempo)</span>
+                <button onClick={() => openTool(5)} className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/80 rounded-xl text-left w-full cursor-pointer">
+                  <PieChart className="w-4 h-4 text-purple-600 dark:text-purple-400" /> <span className="text-zinc-700 dark:text-zinc-100 font-semibold">Independência (Tempo)</span>
                 </button>
                 
-                <div className="text-xs font-bold uppercase tracking-widest text-amber-500 mb-2 px-3 pt-4 border-t border-zinc-100 mt-2 flex items-center justify-between">
+                <div className="text-xs font-bold uppercase tracking-widest text-amber-500 dark:text-amber-400 mb-2 px-3 pt-4 border-t border-zinc-100 dark:border-zinc-800 mt-2 flex items-center justify-between">
                   <span>Plano Premium</span>
-                  <span className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-mono font-bold">ISO 27001</span>
+                  <span className="text-[9px] bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 px-1.5 py-0.5 rounded font-mono font-bold">ISO 27001</span>
                 </div>
                 <button onClick={() => openTool(7)} className="flex items-center gap-3 px-3 py-2 bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 rounded-xl text-left w-full border border-amber-200/60 transition-all cursor-pointer">
                   <div className="p-1 bg-amber-500 text-white rounded-lg"><Bot className="w-3.5 h-3.5" /></div>
@@ -389,84 +392,117 @@ export const FinanceTemplate: React.FC = () => {
                     <span className="text-[10px] text-amber-700 block">Agent-S & ISO 25010</span>
                   </div>
                 </button>
-                <button onClick={() => openTool(6)} className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 rounded-xl text-left w-full">
-                  <Layers className="w-4 h-4 text-zinc-400" /> <span className="text-zinc-500 font-semibold">Alocação de Ativos</span>
+                <button onClick={() => openTool(6)} className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/80 rounded-xl text-left w-full cursor-pointer">
+                  <Layers className="w-4 h-4 text-zinc-400 dark:text-zinc-500" /> <span className="text-zinc-500 dark:text-zinc-300 font-semibold">Alocação de Ativos</span>
                 </button>
               </div>
             </div>
 
             {/* Mega Menu: Blog */}
             <div className="relative group">
-              <button onClick={() => scrollToSection('blog')} className="text-zinc-600 hover:text-[#1A1F71] transition-colors flex items-center gap-1 py-2">
+              <button onClick={() => scrollToSection('blog')} className="text-zinc-600 hover:text-[#1A1F71] dark:text-zinc-200 dark:hover:text-sky-400 transition-colors flex items-center gap-1 py-2 cursor-pointer">
                 Blog <ChevronDown className="w-4 h-4 opacity-50 group-hover:rotate-180 transition-transform" />
               </button>
-              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-0 w-72 bg-white border border-zinc-200 rounded-2xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all p-3 grid grid-cols-1 gap-1 z-50">
-                <div className="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-2 px-3 pt-2">Artigos de Fundação</div>
-                <button onClick={() => openBlog('juros-compostos')} className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 rounded-xl text-left w-full group/btn">
-                  <BookOpen className="w-4 h-4 text-[#1A1F71] group-hover/btn:scale-110 transition-transform" /> 
-                  <span className="text-zinc-700 font-semibold truncate">Juros Compostos Reais</span>
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-0 w-72 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all p-3 grid grid-cols-1 gap-1 z-50">
+                <div className="text-xs font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-2 px-3 pt-2">Artigos de Fundação</div>
+                <button onClick={() => openBlog('juros-compostos')} className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/80 rounded-xl text-left w-full group/btn cursor-pointer">
+                  <BookOpen className="w-4 h-4 text-[#1A1F71] dark:text-sky-400 group-hover/btn:scale-110 transition-transform" /> 
+                  <span className="text-zinc-700 dark:text-zinc-100 font-semibold truncate">Juros Compostos Reais</span>
                 </button>
-                <button onClick={() => openBlog('amortizacao-dividas')} className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 rounded-xl text-left w-full group/btn">
-                  <BookOpen className="w-4 h-4 text-[#1A1F71] group-hover/btn:scale-110 transition-transform" /> 
-                  <span className="text-zinc-700 font-semibold truncate">O Verdadeiro Custo da Dívida</span>
+                <button onClick={() => openBlog('amortizacao-dividas')} className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/80 rounded-xl text-left w-full group/btn cursor-pointer">
+                  <BookOpen className="w-4 h-4 text-[#1A1F71] dark:text-sky-400 group-hover/btn:scale-110 transition-transform" /> 
+                  <span className="text-zinc-700 dark:text-zinc-100 font-semibold truncate">O Verdadeiro Custo da Dívida</span>
                 </button>
-                <button onClick={() => openBlog('independencia-financeira')} className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 rounded-xl text-left w-full group/btn">
-                  <BookOpen className="w-4 h-4 text-[#1A1F71] group-hover/btn:scale-110 transition-transform" /> 
-                  <span className="text-zinc-700 font-semibold truncate">A Matemática da Independência</span>
+                <button onClick={() => openBlog('independencia-financeira')} className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/80 rounded-xl text-left w-full group/btn cursor-pointer">
+                  <BookOpen className="w-4 h-4 text-[#1A1F71] dark:text-sky-400 group-hover/btn:scale-110 transition-transform" /> 
+                  <span className="text-zinc-700 dark:text-zinc-100 font-semibold truncate">A Matemática da Independência</span>
                 </button>
-                <button onClick={() => openBlog('reserva-de-emergencia')} className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 rounded-xl text-left w-full group/btn">
-                  <BookOpen className="w-4 h-4 text-[#1A1F71] group-hover/btn:scale-110 transition-transform" /> 
-                  <span className="text-zinc-700 font-semibold truncate">Reserva de Emergência</span>
+                <button onClick={() => openBlog('reserva-de-emergencia')} className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/80 rounded-xl text-left w-full group/btn cursor-pointer">
+                  <BookOpen className="w-4 h-4 text-[#1A1F71] dark:text-sky-400 group-hover/btn:scale-110 transition-transform" /> 
+                  <span className="text-zinc-700 dark:text-zinc-100 font-semibold truncate">Reserva de Emergência</span>
                 </button>
               </div>
             </div>
 
-            <button onClick={() => navigateTo('about')} className="text-zinc-600 hover:text-[#1A1F71] transition-colors py-2">
+            <button onClick={() => navigateTo('about')} className="text-zinc-600 hover:text-[#1A1F71] dark:text-zinc-200 dark:hover:text-sky-400 transition-colors py-2 cursor-pointer">
               Sobre
             </button>
-            <button onClick={() => navigateTo('contact')} className="text-zinc-600 hover:text-[#1A1F71] transition-colors py-2">
+            <button onClick={() => navigateTo('contact')} className="text-zinc-600 hover:text-[#1A1F71] dark:text-zinc-200 dark:hover:text-sky-400 transition-colors py-2 cursor-pointer">
               Contato
             </button>
-            <button onClick={() => navigateTo('premium')} className="text-amber-600 dark:text-amber-400 hover:text-amber-700 font-bold py-2 flex items-center gap-1.5 transition-colors">
+            <button 
+              onClick={() => {
+                if (currentView === 'home') {
+                  scrollToSection('fluxogramas');
+                } else {
+                  navigateTo('fluxogramas');
+                }
+              }}
+              className="text-zinc-600 hover:text-[#1A1F71] dark:text-zinc-200 dark:hover:text-sky-400 transition-colors py-2 flex items-center gap-1.5 cursor-pointer font-medium"
+              title="Fluxogramas e Compilador de Algoritmos"
+            >
+              <Workflow className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span>Algoritmos</span>
+            </button>
+            <button id="botao-premium" onClick={() => navigateTo('premium')} className="text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 font-bold py-2 flex items-center gap-1.5 transition-colors cursor-pointer">
               <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
               Premium
             </button>
             
-            <div className="h-6 border-l border-zinc-200 mx-2"></div>
+            <div className="h-6 border-l border-zinc-200 dark:border-zinc-800 mx-2"></div>
             
             <button 
               onClick={() => {
                 const event = new KeyboardEvent('keydown', { key: 'k', ctrlKey: true });
                 window.dispatchEvent(event);
               }}
-              className="group text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors py-2 px-3 flex items-center gap-2 bg-zinc-50 dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-full w-48 text-sm text-left"
+              className="group text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors py-2 px-3 flex items-center gap-2 bg-zinc-50 dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-full w-48 text-sm text-left cursor-pointer"
               title="Pesquisar (Ctrl+K)"
             >
               <Search className="w-4 h-4" />
-              <span className="flex-1">Buscar...</span>
+              <span className="flex-1 text-zinc-500 dark:text-zinc-300">Buscar...</span>
               <span className="text-[10px] font-mono font-bold bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-1.5 py-0.5 rounded text-zinc-400 group-hover:border-zinc-300 dark:group-hover:border-zinc-600">Ctrl+K</span>
             </button>
 
             <button
+              onClick={() => {
+                if (currentView !== 'home') {
+                  navigateTo('home');
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('zyc_start_onboarding_tour'));
+                  }, 400);
+                } else {
+                  window.dispatchEvent(new CustomEvent('zyc_start_onboarding_tour'));
+                }
+              }}
+              className="p-2 text-zinc-600 hover:text-[#1A1F71] dark:text-zinc-200 dark:hover:text-white bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-full transition-colors flex items-center gap-1.5 px-3 text-xs font-bold cursor-pointer"
+              title="Iniciar Tour Guiado pela Plataforma"
+            >
+              <Compass className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span>Tour</span>
+            </button>
+
+            <button
               onClick={() => setSplitViewOpen(true)}
-              className="p-2 text-zinc-600 hover:text-[#1A1F71] dark:text-zinc-300 dark:hover:text-white bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-full transition-colors flex items-center gap-1.5 px-3 text-xs font-bold cursor-pointer"
+              className="p-2 text-zinc-600 hover:text-[#1A1F71] dark:text-zinc-200 dark:hover:text-white bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-full transition-colors flex items-center gap-1.5 px-3 text-xs font-bold cursor-pointer"
               title="Comparar Cenários Salvos (Split-View)"
             >
-              <ArrowLeftRight className="w-3.5 h-3.5 text-blue-600" />
+              <ArrowLeftRight className="w-3.5 h-3.5 text-blue-600 dark:text-sky-400" />
               <span>Split-View</span>
             </button>
 
             <button
               onClick={() => setIsDarkTheme(!isDarkTheme)}
-              className="p-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-full transition-colors flex items-center justify-center"
-              title="Alternar Tema"
+              className="p-2 text-zinc-600 hover:text-[#1A1F71] dark:text-sky-400 dark:hover:text-sky-300 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-full transition-all flex items-center justify-center cursor-pointer shadow-xs"
+              title={isDarkTheme ? "Alternar para Modo Claro" : "Alternar para Modo Noturno"}
+              aria-label="Alternar Modo Noturno"
             >
-              {isDarkTheme ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+              {isDarkTheme ? <Moon className="w-4 h-4 text-sky-400 animate-pulse" /> : <Sun className="w-4 h-4 text-amber-500" />}
             </button>
 
             {isLoggedIn ? (
               <div className="flex items-center gap-4">
-                <button onClick={() => navigateTo('admin')} className="text-zinc-600 hover:text-red-500 transition-colors flex items-center gap-1.5 font-bold py-2">
+                <button onClick={() => navigateTo('admin')} className="text-zinc-600 hover:text-red-500 dark:text-zinc-300 dark:hover:text-red-400 transition-colors flex items-center gap-1.5 font-bold py-2 cursor-pointer">
                   <Shield className="w-4 h-4" /> Admin
                 </button>
                 <button 
@@ -479,12 +515,12 @@ export const FinanceTemplate: React.FC = () => {
                 </button>
               </div>
             ) : (
-              <button onClick={() => navigateTo('login')} className="text-zinc-600 hover:text-[#1A1F71] transition-colors flex items-center gap-1.5 font-bold py-2">
+              <button onClick={() => navigateTo('login')} className="text-zinc-600 hover:text-[#1A1F71] dark:text-zinc-200 dark:hover:text-sky-400 transition-colors flex items-center gap-1.5 font-bold py-2 cursor-pointer">
                 <UserCircle className="w-4 h-4" /> Login
               </button>
             )}
             
-            <button onClick={() => scrollToSection('ferramentas')} className="bg-[#1A1F71] hover:bg-[#121652] text-white px-5 py-2.5 rounded-full shadow-md font-semibold transition-all flex items-center gap-2">
+            <button onClick={() => scrollToSection('ferramentas')} className="bg-[#1A1F71] hover:bg-[#121652] dark:bg-sky-600 dark:hover:bg-sky-500 text-white px-5 py-2.5 rounded-full shadow-md font-semibold transition-all flex items-center gap-2 cursor-pointer">
               <Activity className="w-4 h-4" /> Diagnóstico
             </button>
           </nav>
@@ -499,30 +535,69 @@ export const FinanceTemplate: React.FC = () => {
 
         {/* Mobile Menu Drawer */}
         {mobileMenuOpen && (
-          <div className="md:hidden bg-white border-b border-zinc-200 px-4 pt-2 pb-6 space-y-2 shadow-lg animate-in slide-in-from-top-2">
-            <button onClick={() => scrollToSection('ferramentas')} className="w-full text-left block px-3 py-3 rounded-md text-base font-medium text-zinc-700 hover:bg-zinc-50">Ferramentas</button>
-            <button onClick={() => scrollToSection('blog')} className="w-full text-left block px-3 py-3 rounded-md text-base font-medium text-zinc-700 hover:bg-zinc-50">Blog</button>
-            <button onClick={() => navigateTo('about')} className="w-full text-left block px-3 py-3 rounded-md text-base font-medium text-zinc-700 hover:bg-zinc-50">Sobre</button>
-            <button onClick={() => navigateTo('contact')} className="w-full text-left block px-3 py-3 rounded-md text-base font-medium text-zinc-700 hover:bg-zinc-50">Contato</button>
-            <button onClick={() => navigateTo('premium')} className="w-full text-left flex items-center gap-2 px-3 py-3 rounded-md text-base font-bold text-amber-600 dark:text-amber-400 hover:bg-zinc-50">
+          <div className="md:hidden bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 px-4 pt-2 pb-6 space-y-2 shadow-lg animate-in slide-in-from-top-2">
+            <button onClick={() => scrollToSection('ferramentas')} className="w-full text-left block px-3 py-3 rounded-md text-base font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer">Ferramentas</button>
+            <button onClick={() => scrollToSection('blog')} className="w-full text-left block px-3 py-3 rounded-md text-base font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer">Blog</button>
+            <button onClick={() => navigateTo('about')} className="w-full text-left block px-3 py-3 rounded-md text-base font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer">Sobre</button>
+            <button onClick={() => navigateTo('contact')} className="w-full text-left block px-3 py-3 rounded-md text-base font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer">Contato</button>
+            <button onClick={() => { scrollToSection('fluxogramas'); setMobileMenuOpen(false); }} className="w-full text-left flex items-center gap-2 px-3 py-3 rounded-md text-base font-medium text-emerald-600 dark:text-emerald-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer">
+              <Workflow className="w-4 h-4" />
+              <span>Fluxogramas dos Algoritmos</span>
+            </button>
+            <button 
+              onClick={() => { 
+                setMobileMenuOpen(false);
+                if (currentView !== 'home') {
+                  navigateTo('home');
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('zyc_start_onboarding_tour'));
+                  }, 400);
+                } else {
+                  window.dispatchEvent(new CustomEvent('zyc_start_onboarding_tour'));
+                }
+              }} 
+              className="w-full text-left flex items-center gap-2 px-3 py-3 rounded-md text-base font-medium text-indigo-600 dark:text-indigo-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer"
+            >
+              <Compass className="w-4 h-4" />
+              <span>Fazer Tour Guiado</span>
+            </button>
+            <button onClick={() => navigateTo('premium')} className="w-full text-left flex items-center gap-2 px-3 py-3 rounded-md text-base font-bold text-amber-600 dark:text-amber-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer">
               <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
               <span>Plano Premium</span>
             </button>
             
-            <div className="pt-4 border-t border-zinc-100 space-y-3">
+            <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800 space-y-3">
+              <button
+                type="button"
+                onClick={() => setIsDarkTheme(!isDarkTheme)}
+                className="w-full flex items-center justify-center gap-2 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 px-4 py-3 rounded-xl font-bold transition-colors cursor-pointer"
+              >
+                {isDarkTheme ? (
+                  <>
+                    <Sun className="w-4 h-4 text-amber-400" />
+                    <span>Modo Claro</span>
+                  </>
+                ) : (
+                  <>
+                    <Moon className="w-4 h-4 text-sky-400" />
+                    <span>Modo Noturno</span>
+                  </>
+                )}
+              </button>
+
               {!isLoggedIn ? (
-                 <button onClick={() => navigateTo('login')} className="w-full flex items-center justify-center gap-2 border border-zinc-200 text-zinc-700 px-4 py-3 rounded-xl font-semibold shadow-sm">
+                 <button onClick={() => navigateTo('login')} className="w-full flex items-center justify-center gap-2 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 px-4 py-3 rounded-xl font-semibold shadow-sm cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800">
                    <UserCircle className="w-4 h-4" /> Login
                  </button>
               ) : (
                 <button 
                   onClick={() => navigateTo('perfil')} 
-                  className="w-full flex items-center justify-center gap-2 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 px-4 py-3 rounded-xl font-bold cursor-pointer transition-colors"
+                  className="w-full flex items-center justify-center gap-2 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 px-4 py-3 rounded-xl font-bold cursor-pointer transition-colors"
                 >
                    <UserCircle className="w-4 h-4 text-emerald-600" /> Meu Perfil (Conta Ativa)
                 </button>
               )}
-              <button onClick={() => scrollToSection('ferramentas')} className="w-full flex items-center justify-center gap-2 bg-[#1A1F71] text-white px-4 py-3 rounded-xl font-semibold shadow-sm">
+              <button onClick={() => scrollToSection('ferramentas')} className="w-full flex items-center justify-center gap-2 bg-[#1A1F71] dark:bg-sky-600 text-white px-4 py-3 rounded-xl font-semibold shadow-sm cursor-pointer hover:bg-[#121652] dark:hover:bg-sky-500">
                 <Activity className="w-4 h-4" /> <span>Diagnóstico Gratuito</span>
               </button>
             </div>
@@ -532,12 +607,12 @@ export const FinanceTemplate: React.FC = () => {
 
       <main>
         {currentView !== 'home' && currentView !== 'login' && currentView !== 'artigo' && (
-          <div className="bg-zinc-50 border-b border-zinc-200">
+          <div className="bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-              <nav className="flex items-center text-xs font-medium text-zinc-500">
-                <button onClick={() => navigateTo('home')} className="hover:text-[#1A1F71] transition-colors">Home</button>
+              <nav className="flex items-center text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                <button onClick={() => navigateTo('home')} className="hover:text-[#1A1F71] dark:hover:text-sky-400 transition-colors cursor-pointer">Home</button>
                 <span className="mx-2">/</span>
-                <span className="text-zinc-900">{breadcrumbsMap[currentView] || 'Painel'}</span>
+                <span className="text-zinc-900 dark:text-white font-bold">{breadcrumbsMap[currentView] || 'Painel'}</span>
               </nav>
             </div>
           </div>
@@ -554,15 +629,15 @@ export const FinanceTemplate: React.FC = () => {
               {currentView === 'home' && (
                 <>
                   {/* HERO SECTION */}
-                  <section className="relative pt-20 pb-32 overflow-hidden bg-zinc-50 border-b border-zinc-200">
+                  <section className="relative pt-20 pb-32 overflow-hidden bg-zinc-50 dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800 transition-colors duration-200">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
-                      <span className="inline-block text-xs font-bold tracking-widest text-emerald-600 uppercase bg-emerald-100 px-4 py-1.5 rounded-full mb-6">
+                      <span className="inline-block text-xs font-bold tracking-widest text-emerald-600 dark:text-emerald-400 uppercase bg-emerald-100 dark:bg-emerald-950/60 border border-transparent dark:border-emerald-800 px-4 py-1.5 rounded-full mb-6">
                         O Motor da sua Riqueza
                       </span>
-                      <h1 className="text-4xl sm:text-6xl font-black text-zinc-900 tracking-tight leading-[1.1] max-w-4xl mx-auto">
-                        Inteligência Financeira <span className="text-[#1A1F71]">Auditável.</span>
+                      <h1 className="text-4xl sm:text-6xl font-black text-zinc-900 dark:text-white tracking-tight leading-[1.1] max-w-4xl mx-auto transition-colors">
+                        Inteligência Financeira <span className="text-[#1A1F71] dark:text-sky-400 dark:drop-shadow-[0_0_12px_rgba(56,189,248,0.35)] transition-all">Auditável.</span>
                       </h1>
-                      <p className="mt-6 text-lg sm:text-xl text-zinc-600 max-w-2xl mx-auto font-light leading-relaxed">
+                      <p className="mt-6 text-lg sm:text-xl text-zinc-600 dark:text-zinc-300 max-w-2xl mx-auto font-light leading-relaxed transition-colors">
                         Não prevemos o futuro. Nós o calculamos com você. Descubra sua saúde financeira e simule cenários sem "caixas-pretas" ou pegadinhas.
                       </p>
                       
@@ -583,15 +658,15 @@ export const FinanceTemplate: React.FC = () => {
                           </span>
                           <Sparkles className="w-5 h-5 text-amber-300" />
                         </button>
-                        <button onClick={() => scrollToSection('ferramentas')} className="w-full sm:w-auto bg-[#1A1F71] hover:bg-[#121652] text-white px-8 py-4 rounded-full font-bold text-lg shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2">
+                        <button onClick={() => scrollToSection('ferramentas')} className="w-full sm:w-auto bg-[#1A1F71] dark:bg-sky-600 hover:bg-[#121652] dark:hover:bg-sky-500 text-white px-8 py-4 rounded-full font-bold text-lg shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer">
                           Iniciar Diagnóstico <ArrowRight className="w-5 h-5" />
                         </button>
-                        <button onClick={() => scrollToSection('ferramentas')} className="w-full sm:w-auto bg-white border border-zinc-300 hover:border-zinc-400 text-zinc-700 px-8 py-4 rounded-full font-bold text-lg shadow-sm hover:shadow-md transition-all flex items-center justify-center">
+                        <button onClick={() => scrollToSection('ferramentas')} className="w-full sm:w-auto bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-500 text-zinc-700 dark:text-zinc-200 px-8 py-4 rounded-full font-bold text-lg shadow-sm hover:shadow-md transition-all flex items-center justify-center cursor-pointer">
                           Ver Ferramentas
                         </button>
                       </div>
                       
-                      <div className="mt-10 text-xs text-zinc-400 font-medium tracking-wide">
+                      <div className="mt-10 text-xs text-zinc-400 dark:text-zinc-500 font-medium tracking-wide">
                         * Cálculos matemáticos executados com precisão. Segurança Cloud SQL e Firebase Auth.
                       </div>
                     </div>
@@ -637,8 +712,13 @@ export const FinanceTemplate: React.FC = () => {
                     <FinanceCalculators />
                   </section>
 
+                  {/* FLUXOGRAMAS DE ALGORITMOS - COMPILADOR & ENGENHARIA */}
+                  <div id="fluxogramas" className="scroll-mt-20">
+                    <AlgorithmFlowchartEngine />
+                  </div>
+
                   {/* BLOG SEO (SSG) */}
-                  <section id="blog" className="bg-zinc-50 border-t border-zinc-200 scroll-mt-20">
+                  <section id="blog" className="bg-zinc-50 dark:bg-[#0a0a0a] border-t border-zinc-200 dark:border-zinc-800 scroll-mt-20 transition-colors">
                     <ZyconomesBlog onSelectArticle={(id) => openArticle(id, 'Blog & Artigos')} />
                   </section>
 
@@ -699,6 +779,7 @@ export const FinanceTemplate: React.FC = () => {
               {currentView === 'admin' && <AdminDashboard />}
               {currentView === 'sucesso' && <Sucesso />}
               {currentView === 'premium' && <PremiumPage />}
+              {currentView === 'fluxogramas' && <AlgorithmFlowchartEngine />}
             </motion.div>
         </AnimatePresence>
       </main>
@@ -726,6 +807,8 @@ export const FinanceTemplate: React.FC = () => {
               <h4 className="text-white font-bold mb-4 uppercase text-xs tracking-widest">Plataforma</h4>
               <ul className="space-y-3 text-sm">
                 <li><button onClick={() => scrollToSection('ferramentas')} className="hover:text-emerald-400 transition-colors">Ferramentas Livres</button></li>
+                <li><button onClick={() => { if (currentView === 'home') { scrollToSection('fluxogramas'); } else { navigateTo('fluxogramas'); } }} className="hover:text-emerald-400 transition-colors">Fluxogramas dos Algoritmos</button></li>
+                <li><button onClick={() => { if (currentView !== 'home') { navigateTo('home'); setTimeout(() => window.dispatchEvent(new CustomEvent('zyc_start_onboarding_tour')), 400); } else { window.dispatchEvent(new CustomEvent('zyc_start_onboarding_tour')); } }} className="hover:text-emerald-400 transition-colors flex items-center gap-1.5"><Compass className="w-3.5 h-3.5 text-indigo-400" /><span>Tour Guiado (Onboarding)</span></button></li>
                 <li><button onClick={() => navigateTo('login')} className="hover:text-emerald-400 transition-colors">Acessar Conta</button></li>
                 <li><button onClick={() => scrollToSection('blog')} className="hover:text-emerald-400 transition-colors">Educação e Blog</button></li>
               </ul>
@@ -749,6 +832,7 @@ export const FinanceTemplate: React.FC = () => {
       </footer>
 
       {/* GLOBAL WIDGETS */}
+      <OnboardingTour />
       <SearchModal />
       <CookieBanner />
       <FeedbackModal />

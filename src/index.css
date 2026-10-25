@@ -20,6 +20,16 @@
 }
 @custom-variant dark (&:is(.dark *));
 
+.dark {
+  color-scheme: dark;
+}
+
+.dark body {
+  background-color: #0a0a0a;
+  color: #f4f4f5;
+}
+
+
 @media print {
   @page {
     size: A4 portrait;

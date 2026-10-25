@@ -26,7 +26,7 @@ import {
 } from '../services/zyconomesIsoComplianceManager';
 import { AtomicErrorBoundary } from './AtomicErrorBoundary';
 import { recordStableSnapshot } from '../lib/selfHealingEngine';
-import { safeMonetaryInput, safeParseNumber } from '../lib/inputEncapsulator';
+import { safeMonetaryInput, safeRateInput, safeMonthsInput, safeParseNumber, verifyExactInput } from '../lib/inputEncapsulator';
 
 export const FinanceCalculators: React.FC = () => {
   // --- STATE PERSISTENCE ---
@@ -257,6 +257,23 @@ export const FinanceCalculators: React.FC = () => {
     localStorage.getItem('zyc_user_role') === 'admin' ||
     localStorage.getItem('zyc_user_role') === 'super_admin'
   ));
+
+  // Notificação de segurança ao neutralizar comandos e scripts
+  const [sanitizedNotice, setSanitizedNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleThreatNeutralized = (e: any) => {
+      const detail = e.detail;
+      const field = detail?.fieldId || 'valor';
+      const threats = detail?.threats?.join(', ') || 'comandos/scripts não-numéricos';
+      setSanitizedNotice(`Entrada protegida: ${threats} bloqueados no campo "${field}". Apenas valores numéricos seguros são aceitos. O sistema segue 100% estável.`);
+      setTimeout(() => {
+        setSanitizedNotice(null);
+      }, 5000);
+    };
+    window.addEventListener('zyc_input_threat_neutralized', handleThreatNeutralized);
+    return () => window.removeEventListener('zyc_input_threat_neutralized', handleThreatNeutralized);
+  }, []);
 
   // Configurações e Categorias de Ferramentas
   const services = [
@@ -593,25 +610,25 @@ export const FinanceCalculators: React.FC = () => {
   }, [selectedService, income, expenses, freeCashFlow, savingsRate, savings, monthlyContribution, interestRate, years, loanAmount, loanRate, loanYears, currentWealth, targetWealth, wealthContribution, wealthRate, aiProfile, aiAmount]);
 
   return (
-    <div className="py-24 bg-white relative">
+    <div className="py-24 bg-white dark:bg-[#0a0a0a] relative transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
-          <h2 className="text-3xl sm:text-5xl font-black text-zinc-900 tracking-tight">Motores <span className="text-[#1A1F71]">Matemáticos.</span></h2>
-          <p className="mt-4 text-lg text-zinc-600 max-w-2xl mx-auto font-light">Seu planejamento financeiro executado no seu navegador. Nossos simuladores rodam localmente para garantir sua privacidade.</p>
-          <div className="mt-4 text-xs font-bold tracking-widest text-[#1A1F71] uppercase bg-[#1A1F71]/5 inline-block px-4 py-1.5 rounded-full border border-[#1A1F71]/10">Dica: Use Ctrl+S para salvar rapidamente</div>
+          <h2 className="text-3xl sm:text-5xl font-black text-zinc-900 dark:text-white tracking-tight transition-colors">Motores <span className="text-[#1A1F71] dark:text-sky-400 dark:drop-shadow-[0_0_12px_rgba(56,189,248,0.35)] transition-all">Matemáticos.</span></h2>
+          <p className="mt-4 text-lg text-zinc-600 dark:text-zinc-300 max-w-2xl mx-auto font-light transition-colors">Seu planejamento financeiro executado no seu navegador. Nossos simuladores rodam localmente para garantir sua privacidade.</p>
+          <div className="mt-4 text-xs font-bold tracking-widest text-[#1A1F71] dark:text-sky-300 uppercase bg-[#1A1F71]/5 dark:bg-sky-950/40 inline-block px-4 py-1.5 rounded-full border border-[#1A1F71]/10 dark:border-sky-800/40 transition-colors">Dica: Use Ctrl+S para salvar rapidamente</div>
         </div>
 
         <div className="flex justify-center mb-6">
-          <div className="bg-zinc-100 p-1 rounded-xl inline-flex text-sm font-semibold">
+          <div className="bg-zinc-100 dark:bg-zinc-800/80 p-1 rounded-xl inline-flex text-sm font-semibold transition-colors">
             <button 
               onClick={() => { setActiveCategory('free'); trackClick('Tab - Free Tools'); }}
-              className={`px-6 py-2.5 rounded-lg transition-all ${activeCategory === 'free' ? 'bg-white shadow-sm text-zinc-900' : 'text-zinc-500 hover:text-zinc-700'}`}
+              className={`px-6 py-2.5 rounded-lg transition-all cursor-pointer ${activeCategory === 'free' ? 'bg-white dark:bg-zinc-900 shadow-sm text-zinc-900 dark:text-white' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'}`}
             >
               Ferramentas Gratuitas (MVP)
             </button>
             <button 
               onClick={() => { setActiveCategory('premium'); trackClick('Tab - Premium Tools (Paywall)'); }}
-              className={`px-6 py-2.5 rounded-lg transition-all flex items-center gap-2 ${activeCategory === 'premium' ? 'bg-zinc-900 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-700'}`}
+              className={`px-6 py-2.5 rounded-lg transition-all flex items-center gap-2 cursor-pointer ${activeCategory === 'premium' ? 'bg-zinc-900 dark:bg-sky-600 text-white shadow-sm' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'}`}
             >
               Premium <Lock className="w-3 h-3" />
             </button>
@@ -619,22 +636,22 @@ export const FinanceCalculators: React.FC = () => {
         </div>
 
         {/* CROSS-CALCULATOR SYNCHRONIZATION HUB (REACT CONTEXT API) */}
-        <div className="mb-8 p-4 bg-gradient-to-r from-blue-50/70 via-indigo-50/70 to-emerald-50/70 border border-indigo-100 rounded-2xl shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="mb-8 p-4 bg-gradient-to-r from-blue-50/70 via-indigo-50/70 to-emerald-50/70 dark:from-zinc-900 dark:via-zinc-900/90 dark:to-zinc-900 border border-indigo-100 dark:border-zinc-800 rounded-2xl shadow-xs flex flex-col md:flex-row items-center justify-between gap-4 transition-colors">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-[#1A1F71] text-white rounded-xl shadow-xs">
+            <div className="p-2.5 bg-[#1A1F71] dark:bg-sky-600 text-white rounded-xl shadow-xs transition-colors">
               <Link2 className="w-4 h-4" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-zinc-800">
+                <span className="text-xs font-bold uppercase tracking-wider text-zinc-800 dark:text-zinc-200">
                   Estado Compartilhado (React Context)
                 </span>
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-full">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                   Sincronizado
                 </span>
               </div>
-              <p className="text-xs text-zinc-500 mt-0.5">
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
                 Renda, despesas, aportes e patrimônio fluem entre Diagnóstico, Juros Compostos, Reserva, Dívidas e Alocação IA.
               </p>
             </div>
@@ -645,10 +662,10 @@ export const FinanceCalculators: React.FC = () => {
               <button
                 type="button"
                 onClick={applySurplusToInvestments}
-                className="text-xs font-bold text-emerald-800 bg-white hover:bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                className="text-xs font-bold text-emerald-800 dark:text-emerald-300 bg-white dark:bg-zinc-950 hover:bg-emerald-50 dark:hover:bg-zinc-800 border border-emerald-200 dark:border-emerald-800/60 px-3 py-2 rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
                 title={`Aplica o fluxo livre mensal de ${safeNumber(freeCashFlow).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} nos aportes`}
               >
-                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                 Aportar Sobra ({safeNumber(freeCashFlow).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })})
               </button>
             )}
@@ -656,27 +673,27 @@ export const FinanceCalculators: React.FC = () => {
             <button
               type="button"
               onClick={() => window.dispatchEvent(new CustomEvent('zyc_toggle_split_view'))}
-              className="text-xs font-bold text-blue-900 bg-white hover:bg-blue-50 border border-blue-200 px-3 py-2 rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+              className="text-xs font-bold text-blue-900 dark:text-sky-300 bg-white dark:bg-zinc-950 hover:bg-blue-50 dark:hover:bg-zinc-800 border border-blue-200 dark:border-sky-800/60 px-3 py-2 rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
               title="Comparar este cenário com snapshots salvos lado a lado"
             >
-              <ArrowLeftRight className="w-3.5 h-3.5 text-blue-600" />
+              <ArrowLeftRight className="w-3.5 h-3.5 text-blue-600 dark:text-sky-400" />
               Comparar Cenários (Split-View)
             </button>
 
             <button
               type="button"
               onClick={syncAllCalculators}
-              className="text-xs font-bold text-indigo-900 bg-white hover:bg-indigo-50 border border-indigo-200 px-3 py-2 rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+              className="text-xs font-bold text-indigo-900 dark:text-indigo-300 bg-white dark:bg-zinc-950 hover:bg-indigo-50 dark:hover:bg-zinc-800 border border-indigo-200 dark:border-indigo-800/60 px-3 py-2 rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
               title="Sincroniza os dados inseridos em todas as calculadoras"
             >
-              <RefreshCw className="w-3.5 h-3.5 text-indigo-600" />
+              <RefreshCw className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
               Sincronizar Motores
             </button>
 
             <button
               type="button"
               onClick={resetToDefaults}
-              className="text-xs font-medium text-zinc-500 hover:text-zinc-800 bg-transparent hover:bg-zinc-100 px-2.5 py-2 rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
+              className="text-xs font-medium text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 px-2.5 py-2 rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
               title="Restaurar valores padrão"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -685,7 +702,7 @@ export const FinanceCalculators: React.FC = () => {
         </div>
 
         <div className="flex flex-col lg:flex-row gap-8">
-          <div className="w-full lg:w-1/3 flex flex-col gap-3">
+          <div id="menu-ferramentas" className="w-full lg:w-1/3 flex flex-col gap-3">
             {services.filter(s => activeCategory === 'premium' ? true : s.category === 'free').map((service) => (
               <button
                 key={service.id}
@@ -695,20 +712,20 @@ export const FinanceCalculators: React.FC = () => {
                     trackClick(`Locked Tool - ${service.name}`);
                   }
                 }}
-                className={`text-left p-4 rounded-2xl border transition-all flex items-start gap-4 
-                  ${selectedService === service.id ? 'bg-[#1A1F71] border-[#1A1F71] text-white shadow-md transform scale-[1.02]' : 'bg-white border-zinc-200 text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50'}
-                  ${service.locked && selectedService !== service.id ? 'opacity-70 bg-zinc-50' : ''}
+                className={`text-left p-4 rounded-2xl border transition-all flex items-start gap-4 cursor-pointer 
+                  ${selectedService === service.id ? 'bg-[#1A1F71] dark:bg-sky-600 border-[#1A1F71] dark:border-sky-500 text-white shadow-md transform scale-[1.02]' : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 hover:border-zinc-300 dark:hover:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800/60'}
+                  ${service.locked && selectedService !== service.id ? 'opacity-70 bg-zinc-50 dark:bg-zinc-900/60' : ''}
                 `}
               >
-                <div className={`p-2 rounded-xl ${selectedService === service.id ? 'bg-white/20' : 'bg-zinc-100'}`}>
-                  <service.icon className={`w-5 h-5 ${selectedService === service.id ? 'text-white' : 'text-[#1A1F71]'}`} />
+                <div className={`p-2 rounded-xl ${selectedService === service.id ? 'bg-white/20' : 'bg-zinc-100 dark:bg-zinc-800'}`}>
+                  <service.icon className={`w-5 h-5 ${selectedService === service.id ? 'text-white' : 'text-[#1A1F71] dark:text-sky-400'}`} />
                 </div>
                 <div className="flex-1">
                   <h3 className="font-bold text-sm flex items-center gap-2">
                     {service.name}
                     {service.locked && <Lock className="w-3.5 h-3.5 text-amber-400" />}
                   </h3>
-                  <p className={`text-xs mt-1 ${selectedService === service.id ? 'text-blue-100' : 'text-zinc-500'}`}>
+                  <p className={`text-xs mt-1 ${selectedService === service.id ? 'text-blue-100 dark:text-sky-100' : 'text-zinc-500 dark:text-zinc-400'}`}>
                     {service.description}
                   </p>
                 </div>
@@ -717,7 +734,7 @@ export const FinanceCalculators: React.FC = () => {
           </div>
 
           <div className="w-full lg:w-2/3">
-            <div id="print-area" className="bg-white border border-zinc-200 p-6 sm:p-10 rounded-3xl shadow-sm min-h-[500px]">
+            <div id="print-area" className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 sm:p-10 rounded-3xl shadow-sm min-h-[500px] transition-colors">
               <AtomicErrorBoundary
                 moduleName={activeTool.name}
                 capturedInputs={{ income, expenses, savings, monthlyContribution, interestRate, years, loanAmount, loanRate, loanYears, currentWealth, targetWealth }}
@@ -729,15 +746,30 @@ export const FinanceCalculators: React.FC = () => {
                   }
                 }}
               >
+                {sanitizedNotice && (
+                  <div className="mb-6 p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-200 text-xs font-semibold flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 shadow-sm">
+                    <div className="flex items-center gap-2.5">
+                      <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span>{sanitizedNotice}</span>
+                    </div>
+                    <button 
+                      type="button" 
+                      onClick={() => setSanitizedNotice(null)} 
+                      className="text-emerald-700 dark:text-emerald-300 hover:opacity-75 font-black text-sm px-2 cursor-pointer"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                )}
               {selectedService === 1 && (
                 <div className="animate-in fade-in slide-in-from-right-4 duration-500">
                   <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-6">
                     <div className="flex items-center gap-3">
-                      <div className="bg-emerald-100 p-2 rounded-lg"><Activity className="w-6 h-6 text-emerald-600" /></div>
+                      <div className="bg-emerald-100 dark:bg-emerald-950/60 p-2 rounded-lg"><Activity className="w-6 h-6 text-emerald-600 dark:text-emerald-400" /></div>
                       <div>
-                        <h2 className="text-2xl font-black text-zinc-900">Diagnóstico Financeiro</h2>
+                        <h2 className="text-2xl font-black text-zinc-900 dark:text-white transition-colors">Diagnóstico Financeiro</h2>
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-full">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                             Recálculo Local Instantâneo
                           </span>
@@ -747,11 +779,12 @@ export const FinanceCalculators: React.FC = () => {
                     
                     <div className="flex items-center gap-2">
                       {openFinanceSynced && (
-                        <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
+                        <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-md border border-emerald-200 dark:border-emerald-800">
                           Sincronizado!
                         </span>
                       )}
                       <button 
+                        id="botao-calcular"
                         type="button"
                         onClick={() => {
                           setIncome(15000);
@@ -759,7 +792,7 @@ export const FinanceCalculators: React.FC = () => {
                           setOpenFinanceSynced(true);
                           setTimeout(() => setOpenFinanceSynced(false), 3500);
                         }}
-                        className="text-xs font-bold bg-zinc-900 hover:bg-zinc-800 text-white px-3 py-2 rounded-lg flex items-center gap-2 transition-colors cursor-pointer"
+                        className="text-xs font-bold bg-zinc-900 dark:bg-zinc-800 hover:bg-zinc-800 dark:hover:bg-zinc-700 text-white px-3 py-2 rounded-lg flex items-center gap-2 transition-colors cursor-pointer shadow-xs"
                       >
                         <Database className="w-3 h-3" /> Conectar Banco
                       </button>
@@ -768,8 +801,9 @@ export const FinanceCalculators: React.FC = () => {
                   
                   <form onSubmit={(e) => { e.preventDefault(); e.stopPropagation(); }} className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Renda Mensal (R$)</label>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2">Renda Mensal (R$)</label>
                       <input 
+                        id="input-renda"
                         type="number" 
                         value={income} 
                         onChange={(e) => { 
@@ -782,11 +816,11 @@ export const FinanceCalculators: React.FC = () => {
                           trackFieldFill('Renda Mensal');
                           recordStableSnapshot('Diagnóstico Financeiro', { income, expenses, savings });
                         }} 
-                        className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:border-[#1A1F71] focus:ring-1 focus:ring-[#1A1F71] bg-zinc-50 font-mono text-lg" 
+                        className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 focus:border-[#1A1F71] dark:focus:border-sky-400 focus:ring-1 focus:ring-[#1A1F71] dark:focus:ring-sky-400 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-white font-mono text-lg transition-colors" 
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Despesas Mensais (R$)</label>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2">Despesas Mensais (R$)</label>
                       <input 
                         type="number" 
                         value={expenses} 
@@ -800,11 +834,11 @@ export const FinanceCalculators: React.FC = () => {
                           trackFieldFill('Despesas Mensais');
                           recordStableSnapshot('Diagnóstico Financeiro', { income, expenses, savings });
                         }} 
-                        className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:border-[#1A1F71] focus:ring-1 focus:ring-[#1A1F71] bg-zinc-50 font-mono text-lg" 
+                        className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 focus:border-[#1A1F71] dark:focus:border-sky-400 focus:ring-1 focus:ring-[#1A1F71] dark:focus:ring-sky-400 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-white font-mono text-lg transition-colors" 
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Reserva Atual (R$)</label>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2">Reserva Atual (R$)</label>
                       <input 
                         type="number" 
                         value={savings} 
@@ -818,29 +852,29 @@ export const FinanceCalculators: React.FC = () => {
                           trackFieldFill('Reserva Atual');
                           recordStableSnapshot('Diagnóstico Financeiro', { income, expenses, savings });
                         }} 
-                        className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:border-[#1A1F71] focus:ring-1 focus:ring-[#1A1F71] bg-zinc-50 font-mono text-lg" 
+                        className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 focus:border-[#1A1F71] dark:focus:border-sky-400 focus:ring-1 focus:ring-[#1A1F71] dark:focus:ring-sky-400 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-white font-mono text-lg transition-colors" 
                       />
                     </div>
                   </form>
 
-                  <div className="bg-zinc-950 text-white rounded-2xl p-6 sm:p-8">
+                  <div id="painel-resultado" className="bg-zinc-950 dark:bg-[#070709] border border-transparent dark:border-zinc-800 text-white rounded-2xl p-6 sm:p-8 transition-colors">
                     <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-6">Diagnóstico do Fluxo de Caixa</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                       <div>
-                        <div className="text-2xl sm:text-3xl font-black">{freeCashFlow >= 0 ? '+' : ''}{safeNumber(freeCashFlow).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
-                        <div className="text-xs text-zinc-500 mt-2">Disponível para investir</div>
+                        <div className="text-2xl sm:text-3xl font-black text-white">{freeCashFlow >= 0 ? '+' : ''}{safeNumber(freeCashFlow).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
+                        <div className="text-xs text-zinc-400 mt-2">Disponível para investir</div>
                       </div>
                       <div>
                         <div className={`text-2xl sm:text-3xl font-black ${savingsRate >= 20 ? 'text-emerald-400' : savingsRate > 0 ? 'text-yellow-400' : 'text-red-400'}`}>
                           {safeNumber(savingsRate).toFixed(1)}%
                         </div>
-                        <div className="text-xs text-zinc-500 mt-2">Taxa de Poupança (Alvo: &gt; 20%)</div>
+                        <div className="text-xs text-zinc-400 mt-2">Taxa de Poupança (Alvo: &gt; 20%)</div>
                       </div>
                       <div>
-                        <div className="text-2xl sm:text-3xl font-black text-blue-400">
+                        <div className="text-2xl sm:text-3xl font-black text-sky-400">
                           {calculateEmergencyFundMonths(savings, expenses).toFixed(1)} <span className="text-base font-normal text-zinc-400">meses</span>
                         </div>
-                        <div className="text-xs text-zinc-500 mt-2">Cobertura de Reserva (Alvo: 6m)</div>
+                        <div className="text-xs text-zinc-400 mt-2">Cobertura de Reserva (Alvo: 6m)</div>
                       </div>
                     </div>
                   </div>
@@ -855,12 +889,12 @@ export const FinanceCalculators: React.FC = () => {
                 <div className="animate-in fade-in slide-in-from-right-4 duration-500">
                   <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-6">
                     <div className="flex items-center gap-3">
-                      <div className="bg-blue-100 p-2 rounded-lg"><TrendingUp className="w-6 h-6 text-blue-600" /></div>
+                      <div className="bg-blue-100 dark:bg-blue-950/60 p-2 rounded-lg"><TrendingUp className="w-6 h-6 text-blue-600 dark:text-sky-400" /></div>
                       <div>
-                        <h2 className="text-2xl font-black text-zinc-900">Juros Compostos</h2>
+                        <h2 className="text-2xl font-black text-zinc-900 dark:text-white transition-colors">Juros Compostos</h2>
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full">
-                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-sky-300 border border-blue-200 dark:border-blue-800 px-2 py-0.5 rounded-full">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-sky-400 animate-pulse"></span>
                             Recálculo Local Instantâneo
                           </span>
                         </div>
@@ -870,33 +904,73 @@ export const FinanceCalculators: React.FC = () => {
                   
                   <form onSubmit={(e) => { e.preventDefault(); e.stopPropagation(); }} className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Valor Inicial (R$)</label>
-                      <input type="number" value={savings} onChange={(e) => { e.stopPropagation(); setSavings(Number(e.target.value)); }} onBlur={() => trackFieldFill('Valor Inicial')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:border-[#1A1F71] bg-zinc-50 font-mono text-lg" />
+                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2">Valor Inicial (R$)</label>
+                      <input 
+                        type="number" 
+                        value={savings} 
+                        onChange={(e) => { 
+                          e.stopPropagation(); 
+                          const val = safeMonetaryInput(e.target.value, 'savings', savings);
+                          setSavings(val); 
+                        }} 
+                        onBlur={() => trackFieldFill('Valor Inicial')} 
+                        className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 focus:border-[#1A1F71] dark:focus:border-sky-400 focus:ring-1 focus:ring-[#1A1F71] dark:focus:ring-sky-400 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-white font-mono text-lg transition-colors" 
+                      />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Aporte Mensal (R$)</label>
-                      <input type="number" value={monthlyContribution} onChange={(e) => { e.stopPropagation(); setMonthlyContribution(Number(e.target.value)); }} onBlur={() => trackFieldFill('Aporte Mensal')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:border-[#1A1F71] bg-zinc-50 font-mono text-lg" />
+                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2">Aporte Mensal (R$)</label>
+                      <input 
+                        type="number" 
+                        value={monthlyContribution} 
+                        onChange={(e) => { 
+                          e.stopPropagation(); 
+                          const val = safeMonetaryInput(e.target.value, 'monthlyContribution', monthlyContribution);
+                          setMonthlyContribution(val); 
+                        }} 
+                        onBlur={() => trackFieldFill('Aporte Mensal')} 
+                        className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 focus:border-[#1A1F71] dark:focus:border-sky-400 focus:ring-1 focus:ring-[#1A1F71] dark:focus:ring-sky-400 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-white font-mono text-lg transition-colors" 
+                      />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Taxa de Juros Anual (%)</label>
-                      <input type="number" value={interestRate} onChange={(e) => { e.stopPropagation(); setInterestRate(Number(e.target.value)); }} onBlur={() => trackFieldFill('Taxa de Juros')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:border-[#1A1F71] bg-zinc-50 font-mono text-lg" />
+                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2">Taxa de Juros Anual (%)</label>
+                      <input 
+                        type="number" 
+                        value={interestRate} 
+                        onChange={(e) => { 
+                          e.stopPropagation(); 
+                          const val = safeRateInput(e.target.value, 'interestRate', interestRate);
+                          setInterestRate(val); 
+                        }} 
+                        onBlur={() => trackFieldFill('Taxa de Juros')} 
+                        className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 focus:border-[#1A1F71] dark:focus:border-sky-400 focus:ring-1 focus:ring-[#1A1F71] dark:focus:ring-sky-400 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-white font-mono text-lg transition-colors" 
+                      />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Tempo (Anos)</label>
-                      <input type="number" value={years} onChange={(e) => { e.stopPropagation(); setYears(Number(e.target.value)); }} onBlur={() => trackFieldFill('Tempo em Anos')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:border-[#1A1F71] bg-zinc-50 font-mono text-lg" />
+                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2">Tempo (Anos)</label>
+                      <input 
+                        type="number" 
+                        value={years} 
+                        onChange={(e) => { 
+                          e.stopPropagation(); 
+                          const val = safeParseNumber(e.target.value, years, 1, 100, 'years').value;
+                          setYears(val); 
+                        }} 
+                        onBlur={() => trackFieldFill('Tempo em Anos')} 
+                        className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 focus:border-[#1A1F71] dark:focus:border-sky-400 focus:ring-1 focus:ring-[#1A1F71] dark:focus:ring-sky-400 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-white font-mono text-lg transition-colors" 
+                      />
                     </div>
                   </form>
 
-                  <div className="bg-[#1A1F71] text-white rounded-t-2xl p-6 sm:p-8">
-                     <h3 className="text-sm font-bold uppercase tracking-widest text-blue-200 mb-2">Montante Final Estimado</h3>
-                     <div className="text-4xl font-black mb-6">{safeNumber(compoundResult).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
-                     <div className="text-xs text-blue-200 flex items-center gap-2">
+                  <div className="bg-[#1A1F71] dark:bg-sky-950/80 dark:border dark:border-sky-800/60 text-white rounded-t-2xl p-6 sm:p-8 transition-colors">
+                     <h3 className="text-sm font-bold uppercase tracking-widest text-blue-200 dark:text-sky-300 mb-2">Montante Final Estimado</h3>
+                     <div className="text-4xl font-black mb-6 text-white">{safeNumber(compoundResult).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
+                     <div className="text-xs text-blue-200 dark:text-sky-300 flex items-center gap-2">
                         <Info className="w-4 h-4" /> 
                         Sem considerar inflação ou impostos (IR).
                      </div>
                   </div>
-                  <div className="bg-white border-l border-r border-b border-zinc-200 rounded-b-2xl p-6 mb-8 shadow-sm">
-                    <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-6">Projeção de Crescimento (Anos)</h3>
+                  <div className="bg-white dark:bg-zinc-900 border-l border-r border-b border-zinc-200 dark:border-zinc-800 rounded-b-2xl p-6 mb-8 shadow-sm transition-colors">
+                    <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-300 mb-6">Projeção de Crescimento (Anos)</h3>
                     <div className="h-64 w-full">
                       <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={compoundChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -910,15 +984,15 @@ export const FinanceCalculators: React.FC = () => {
                               <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                             </linearGradient>
                           </defs>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f4f4f5" />
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#3f3f46" strokeOpacity={0.25} />
                           <XAxis dataKey="year" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#a1a1aa' }} />
                           <YAxis tickFormatter={(val) => `R$ ${val >= 1000 ? (val/1000).toFixed(0) + 'k' : val}`} axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#a1a1aa' }} width={60} />
                           <Tooltip 
                             formatter={(value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                             labelFormatter={(label) => `Ano ${label}`}
-                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)' }}
+                            contentStyle={{ borderRadius: '12px', border: '1px solid #3f3f46', backgroundColor: '#18181b', color: '#fff', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.3)' }}
                           />
-                          <Area type="monotone" dataKey="Total" stroke="#1A1F71" strokeWidth={3} fillOpacity={1} fill="url(#colorTotal)" />
+                          <Area type="monotone" dataKey="Total" stroke="#38bdf8" strokeWidth={3} fillOpacity={1} fill="url(#colorTotal)" />
                           <Area type="monotone" dataKey="Investido" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorInvestido)" />
                         </AreaChart>
                       </ResponsiveContainer>
@@ -935,11 +1009,11 @@ export const FinanceCalculators: React.FC = () => {
                 <div className="animate-in fade-in slide-in-from-right-4 duration-500">
                   <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-6">
                     <div className="flex items-center gap-3">
-                      <div className="bg-amber-100 p-2 rounded-lg"><ShieldCheck className="w-6 h-6 text-amber-600" /></div>
+                      <div className="bg-amber-100 dark:bg-amber-950/60 p-2 rounded-lg"><ShieldCheck className="w-6 h-6 text-amber-600 dark:text-amber-400" /></div>
                       <div>
-                        <h2 className="text-2xl font-black text-zinc-900">Reserva de Emergência</h2>
+                        <h2 className="text-2xl font-black text-zinc-900 dark:text-white transition-colors">Reserva de Emergência</h2>
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 px-2 py-0.5 rounded-full">
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
                             Recálculo Local Instantâneo
                           </span>
@@ -950,17 +1024,37 @@ export const FinanceCalculators: React.FC = () => {
                   {/* ... inputs for Tool 3 ... */}
                   <form onSubmit={(e) => { e.preventDefault(); e.stopPropagation(); }} className="grid grid-cols-1 gap-6 mb-8">
                      <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Custo Essencial Mensal (R$)</label>
-                      <input type="number" value={expenses} onChange={(e) => { e.stopPropagation(); setExpenses(Number(e.target.value)); }} onBlur={() => trackFieldFill('Custo Mensal (RE)')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-zinc-50 font-mono text-lg" />
+                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2">Custo Essencial Mensal (R$)</label>
+                      <input 
+                        type="number" 
+                        value={expenses} 
+                        onChange={(e) => { 
+                          e.stopPropagation(); 
+                          const val = safeMonetaryInput(e.target.value, 'expenses', expenses);
+                          setExpenses(val); 
+                        }} 
+                        onBlur={() => trackFieldFill('Custo Mensal (RE)')} 
+                        className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 focus:border-[#1A1F71] dark:focus:border-sky-400 focus:ring-1 focus:ring-[#1A1F71] dark:focus:ring-sky-400 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-white font-mono text-lg transition-colors" 
+                      />
                     </div>
                      <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Valor Já Guardado (R$)</label>
-                      <input type="number" value={savings} onChange={(e) => { e.stopPropagation(); setSavings(Number(e.target.value)); }} onBlur={() => trackFieldFill('Valor Guardado (RE)')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-zinc-50 font-mono text-lg" />
+                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2">Valor Já Guardado (R$)</label>
+                      <input 
+                        type="number" 
+                        value={savings} 
+                        onChange={(e) => { 
+                          e.stopPropagation(); 
+                          const val = safeMonetaryInput(e.target.value, 'savings', savings);
+                          setSavings(val); 
+                        }} 
+                        onBlur={() => trackFieldFill('Valor Guardado (RE)')} 
+                        className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 focus:border-[#1A1F71] dark:focus:border-sky-400 focus:ring-1 focus:ring-[#1A1F71] dark:focus:ring-sky-400 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-white font-mono text-lg transition-colors" 
+                      />
                     </div>
                   </form>
-                  <div className="bg-zinc-950 text-white rounded-2xl p-6 sm:p-8">
+                  <div className="bg-zinc-950 dark:bg-[#070709] border border-transparent dark:border-zinc-800 text-white rounded-2xl p-6 sm:p-8 transition-colors">
                      <div className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-2">Meta de Segurança (6 Meses)</div>
-                     <div className="text-3xl font-black mb-4">{safeNumber(emergencyReserveTarget).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
+                     <div className="text-3xl font-black mb-4 text-white">{safeNumber(emergencyReserveTarget).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
                   </div>
                   <SaveButton toolId="3" name="Reserva" data={{ income, expenses }} />
                   <EmailCapture toolName="Reserva de Emergência" resultData={{ expenses, savings, emergencyReserveTarget }} />
@@ -990,11 +1084,11 @@ export const FinanceCalculators: React.FC = () => {
                 <div className="animate-in fade-in slide-in-from-right-4 duration-500">
                   <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
                     <div className="flex items-center gap-3">
-                      <div className="bg-purple-100 p-2 rounded-lg"><LucidePieChart className="w-6 h-6 text-purple-600" /></div>
+                      <div className="bg-purple-100 dark:bg-purple-950/60 p-2 rounded-lg"><LucidePieChart className="w-6 h-6 text-purple-600 dark:text-purple-400" /></div>
                       <div>
-                        <h2 className="text-2xl font-black text-zinc-900">Independência Financeira (Fator Tempo)</h2>
+                        <h2 className="text-2xl font-black text-zinc-900 dark:text-white transition-colors">Independência Financeira (Fator Tempo)</h2>
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-full">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 px-2 py-0.5 rounded-full">
                             <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse"></span>
                             Recálculo Local Instantâneo
                           </span>
@@ -1005,7 +1099,7 @@ export const FinanceCalculators: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setTargetWealth(Math.max(100000, expenses * 12 * 25))}
-                      className="text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                      className="text-xs font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 border border-purple-200 dark:border-purple-800 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
                       title="Define meta como 300 vezes suas despesas mensais (Regra dos 4%)"
                     >
                       <Sparkles className="w-3.5 h-3.5" />
@@ -1015,24 +1109,64 @@ export const FinanceCalculators: React.FC = () => {
 
                   <form onSubmit={(e) => { e.preventDefault(); e.stopPropagation(); }} className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Patrimônio Atual (R$)</label>
-                      <input type="number" value={currentWealth} onChange={(e) => { e.stopPropagation(); setCurrentWealth(Number(e.target.value)); }} onBlur={() => trackFieldFill('Patrimônio Atual')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-zinc-50 font-mono text-lg" />
+                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2">Patrimônio Atual (R$)</label>
+                      <input 
+                        type="number" 
+                        value={currentWealth} 
+                        onChange={(e) => { 
+                          e.stopPropagation(); 
+                          const val = safeMonetaryInput(e.target.value, 'currentWealth', currentWealth);
+                          setCurrentWealth(val); 
+                        }} 
+                        onBlur={() => trackFieldFill('Patrimônio Atual')} 
+                        className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 focus:border-[#1A1F71] dark:focus:border-sky-400 focus:ring-1 focus:ring-[#1A1F71] dark:focus:ring-sky-400 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-white font-mono text-lg transition-colors" 
+                      />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Meta Patrimonial (R$)</label>
-                      <input type="number" value={targetWealth} onChange={(e) => { e.stopPropagation(); setTargetWealth(Number(e.target.value)); }} onBlur={() => trackFieldFill('Meta Patrimônio')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-zinc-50 font-mono text-lg" />
+                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2">Meta Patrimonial (R$)</label>
+                      <input 
+                        type="number" 
+                        value={targetWealth} 
+                        onChange={(e) => { 
+                          e.stopPropagation(); 
+                          const val = safeMonetaryInput(e.target.value, 'targetWealth', targetWealth);
+                          setTargetWealth(val); 
+                        }} 
+                        onBlur={() => trackFieldFill('Meta Patrimônio')} 
+                        className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 focus:border-[#1A1F71] dark:focus:border-sky-400 focus:ring-1 focus:ring-[#1A1F71] dark:focus:ring-sky-400 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-white font-mono text-lg transition-colors" 
+                      />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Aporte Mensal (R$)</label>
-                      <input type="number" value={wealthContribution} onChange={(e) => { e.stopPropagation(); setWealthContribution(Number(e.target.value)); }} onBlur={() => trackFieldFill('Aporte Independência')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-zinc-50 font-mono text-lg" />
+                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2">Aporte Mensal (R$)</label>
+                      <input 
+                        type="number" 
+                        value={wealthContribution} 
+                        onChange={(e) => { 
+                          e.stopPropagation(); 
+                          const val = safeMonetaryInput(e.target.value, 'wealthContribution', wealthContribution);
+                          setWealthContribution(val); 
+                        }} 
+                        onBlur={() => trackFieldFill('Aporte Independência')} 
+                        className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 focus:border-[#1A1F71] dark:focus:border-sky-400 focus:ring-1 focus:ring-[#1A1F71] dark:focus:ring-sky-400 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-white font-mono text-lg transition-colors" 
+                      />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Taxa Real Líquida Anual (%)</label>
-                      <input type="number" value={wealthRate} onChange={(e) => { e.stopPropagation(); setWealthRate(Number(e.target.value)); }} onBlur={() => trackFieldFill('Taxa Independência')} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-zinc-50 font-mono text-lg" />
+                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2">Taxa Real Líquida Anual (%)</label>
+                      <input 
+                        type="number" 
+                        value={wealthRate} 
+                        onChange={(e) => { 
+                          e.stopPropagation(); 
+                          const val = safeRateInput(e.target.value, 'wealthRate', wealthRate);
+                          setWealthRate(val); 
+                        }} 
+                        onBlur={() => trackFieldFill('Taxa Independência')} 
+                        className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 focus:border-[#1A1F71] dark:focus:border-sky-400 focus:ring-1 focus:ring-[#1A1F71] dark:focus:ring-sky-400 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-white font-mono text-lg transition-colors" 
+                      />
                     </div>
                   </form>
 
-                  <div className="bg-purple-950 text-white rounded-2xl p-6 sm:p-8">
+                  <div className="bg-purple-950 dark:bg-purple-950/80 border border-transparent dark:border-purple-800/50 text-white rounded-2xl p-6 sm:p-8 transition-colors">
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                       <div>
                         <div className="text-sm font-bold uppercase tracking-widest text-purple-300 mb-2">Tempo Restante</div>
@@ -1062,23 +1196,23 @@ export const FinanceCalculators: React.FC = () => {
                   <div>
                     <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
                       <div className="flex items-center gap-3">
-                        <div className="bg-indigo-100 p-2.5 rounded-xl text-indigo-700">
+                        <div className="bg-indigo-100 dark:bg-indigo-950/60 p-2.5 rounded-xl text-indigo-700 dark:text-indigo-400">
                           <Layers className="w-6 h-6" />
                         </div>
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
-                            <h2 className="text-2xl font-black text-zinc-900 tracking-tight">
+                            <h2 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight transition-colors">
                               Alocação de Ativos & Setup Institucional
                             </h2>
-                            <span className="text-[10px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-800 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                            <span className="text-[10px] font-black uppercase tracking-wider bg-indigo-100 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 border border-transparent dark:border-indigo-800 px-2.5 py-0.5 rounded-full flex items-center gap-1">
                               <Sparkles className="w-3 h-3" /> Padrão High Net Worth
                             </span>
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-full">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                               Recálculo Local Instantâneo
                             </span>
                           </div>
-                          <p className="text-sm text-zinc-500 mt-0.5">
+                          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
                             Metodologias consagradas por Family Offices, Fundos Soberanos e Endowments para preservação e multiplicação real de capital.
                           </p>
                         </div>
@@ -1087,17 +1221,17 @@ export const FinanceCalculators: React.FC = () => {
                   </div>
 
                   {/* Mode Selector Tabs */}
-                  <div className="flex items-center gap-2 p-1.5 bg-zinc-100 rounded-2xl w-full sm:w-fit border border-zinc-200/80">
+                  <div className="flex items-center gap-2 p-1.5 bg-zinc-100 dark:bg-zinc-800/80 rounded-2xl w-full sm:w-fit border border-zinc-200/80 dark:border-zinc-700">
                     <button
                       type="button"
                       onClick={() => setSetupMode('strategies')}
                       className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold tracking-wide transition-all flex items-center justify-center gap-2 cursor-pointer ${
                         setupMode === 'strategies'
-                          ? 'bg-white text-zinc-900 shadow-sm border border-zinc-200'
-                          : 'text-zinc-600 hover:text-zinc-900'
+                          ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm border border-zinc-200 dark:border-zinc-700'
+                          : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
                       }`}
                     >
-                      <Award className="w-3.5 h-3.5 text-indigo-600" />
+                      <Award className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                       Modelos de Referência Institucional
                     </button>
                     <button
@@ -1105,11 +1239,11 @@ export const FinanceCalculators: React.FC = () => {
                       onClick={() => setSetupMode('profiles')}
                       className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold tracking-wide transition-all flex items-center justify-center gap-2 cursor-pointer ${
                         setupMode === 'profiles'
-                          ? 'bg-white text-zinc-900 shadow-sm border border-zinc-200'
-                          : 'text-zinc-600 hover:text-zinc-900'
+                          ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm border border-zinc-200 dark:border-zinc-700'
+                          : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
                       }`}
                     >
-                      <Sliders className="w-3.5 h-3.5 text-indigo-600" />
+                      <Sliders className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                       Perfis por Tolerância a Risco
                     </button>
                   </div>
@@ -1118,11 +1252,11 @@ export const FinanceCalculators: React.FC = () => {
                   {setupMode === 'strategies' ? (
                     <div>
                       <div className="flex items-center justify-between mb-3">
-                        <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center gap-1.5">
-                          <Compass className="w-4 h-4 text-indigo-600" />
+                        <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
+                          <Compass className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                           Selecione o Setup Estratégico
                         </label>
-                        <span className="text-xs text-zinc-400 font-medium">6 Modelos Selecionados</span>
+                        <span className="text-xs text-zinc-400 dark:text-zinc-500 font-medium">6 Modelos Selecionados</span>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
                         {INSTITUTIONAL_STRATEGIES.map((strategy) => {
@@ -1137,33 +1271,33 @@ export const FinanceCalculators: React.FC = () => {
                               }}
                               className={`text-left p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
                                 isSelected
-                                  ? 'border-indigo-600 bg-indigo-50/60 shadow-md ring-2 ring-indigo-500/20'
-                                  : 'border-zinc-200 hover:border-zinc-300 bg-white hover:bg-zinc-50/50'
+                                  ? 'border-indigo-600 dark:border-indigo-500 bg-indigo-50/60 dark:bg-indigo-950/40 shadow-md ring-2 ring-indigo-500/20'
+                                  : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 bg-white dark:bg-zinc-900 hover:bg-zinc-50/50 dark:hover:bg-zinc-850'
                               }`}
                             >
                               <div>
                                 <div className="flex items-start justify-between gap-2 mb-2">
-                                  <span className="text-[10px] font-black uppercase tracking-wider bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded-md border border-zinc-200">
+                                  <span className="text-[10px] font-black uppercase tracking-wider bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 px-2 py-0.5 rounded-md border border-zinc-200 dark:border-zinc-700">
                                     {strategy.riskProfile}
                                   </span>
                                   {isSelected && (
-                                    <span className="text-xs font-bold text-indigo-600 flex items-center gap-1 bg-white px-2 py-0.5 rounded-full border border-indigo-200 shadow-xs">
+                                    <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1 bg-white dark:bg-zinc-950 px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800 shadow-xs">
                                       <Check className="w-3 h-3" /> Ativo
                                     </span>
                                   )}
                                 </div>
-                                <h3 className="font-bold text-zinc-900 text-sm leading-snug">
+                                <h3 className="font-bold text-zinc-900 dark:text-white text-sm leading-snug">
                                   {strategy.title}
                                 </h3>
-                                <p className="text-[11px] text-zinc-500 mt-1 line-clamp-2">
+                                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 line-clamp-2">
                                   {strategy.subtitle}
                                 </p>
                               </div>
-                              <div className="mt-3 pt-3 border-t border-zinc-200/70 flex items-center justify-between text-xs">
-                                <span className="text-zinc-500 font-medium text-[11px]">
+                              <div className="mt-3 pt-3 border-t border-zinc-200/70 dark:border-zinc-800 flex items-center justify-between text-xs">
+                                <span className="text-zinc-500 dark:text-zinc-400 font-medium text-[11px]">
                                   {strategy.referenceAuthor.split('(')[0].trim()}
                                 </span>
-                                <span className="font-black text-indigo-700 bg-indigo-100/70 px-2 py-0.5 rounded text-[11px]">
+                                <span className="font-black text-indigo-700 dark:text-indigo-300 bg-indigo-100/70 dark:bg-indigo-950/60 px-2 py-0.5 rounded text-[11px]">
                                   {strategy.expectedRealReturn}
                                 </span>
                               </div>
@@ -1174,7 +1308,7 @@ export const FinanceCalculators: React.FC = () => {
                     </div>
                   ) : (
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-3">
+                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">
                         Perfil por Tolerância a Risco (Metodologia CVM / Anbima)
                       </label>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1190,15 +1324,15 @@ export const FinanceCalculators: React.FC = () => {
                               }}
                               className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
                                 isSelected
-                                  ? 'border-indigo-600 bg-indigo-50/60 shadow-md ring-2 ring-indigo-500/20'
-                                  : 'border-zinc-200 hover:border-zinc-300 bg-white hover:bg-zinc-50'
+                                  ? 'border-indigo-600 dark:border-indigo-500 bg-indigo-50/60 dark:bg-indigo-950/40 shadow-md ring-2 ring-indigo-500/20'
+                                  : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-850'
                               }`}
                             >
                               <div className="flex items-center justify-between mb-1">
-                                <h4 className="font-bold text-zinc-900">{profile}</h4>
-                                {isSelected && <Check className="w-4 h-4 text-indigo-600" />}
+                                <h4 className="font-bold text-zinc-900 dark:text-white">{profile}</h4>
+                                {isSelected && <Check className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />}
                               </div>
-                              <p className="text-xs text-zinc-500">
+                              <p className="text-xs text-zinc-500 dark:text-zinc-400">
                                 {profile === 'Conservador' && 'Foco em soberania cambial, liquidez e proteção patrimonial.'}
                                 {profile === 'Moderado' && 'Equilíbrio ótimo entre renda passiva isenta e crescimento em moeda forte.'}
                                 {profile === 'Agressivo' && 'Máxima exposição à convexidade global e retornos reais de longo prazo.'}
@@ -1211,19 +1345,19 @@ export const FinanceCalculators: React.FC = () => {
                   )}
 
                   {/* Input de Montante a Alocar com Atalhos */}
-                  <form onSubmit={(e) => { e.preventDefault(); e.stopPropagation(); }} className="bg-zinc-50 border border-zinc-200/90 rounded-2xl p-5">
+                  <form onSubmit={(e) => { e.preventDefault(); e.stopPropagation(); }} className="bg-zinc-50 dark:bg-zinc-950 border border-zinc-200/90 dark:border-zinc-800 rounded-2xl p-5 transition-colors">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
                       <div>
-                        <label className="text-xs font-bold uppercase tracking-wider text-zinc-700 block">
+                        <label className="text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-200 block">
                           Montante Total a Alocar (R$)
                         </label>
-                        <span className="text-xs text-zinc-500">
+                        <span className="text-xs text-zinc-500 dark:text-zinc-400">
                           Capital a ser distribuído rigorosamente entre as classes da estratégia.
                         </span>
                       </div>
                       <div className="text-right">
-                        <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest block">Volume Total</span>
-                        <span className="text-xl font-black text-indigo-900 font-mono">
+                        <span className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest block">Volume Total</span>
+                        <span className="text-xl font-black text-indigo-900 dark:text-indigo-300 font-mono">
                           {safeNumber(aiAmount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                         </span>
                       </div>
@@ -1235,8 +1369,12 @@ export const FinanceCalculators: React.FC = () => {
                         <input
                           type="number"
                           value={aiAmount}
-                          onChange={(e) => { e.stopPropagation(); setAiAmount(Math.max(1000, Number(e.target.value) || 0)); }}
-                          className="w-full pl-12 pr-4 py-3 rounded-xl border border-zinc-200 bg-white font-mono text-lg font-bold text-zinc-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          onChange={(e) => { 
+                            e.stopPropagation(); 
+                            const val = safeMonetaryInput(e.target.value, 'aiAmount', aiAmount);
+                            setAiAmount(Math.max(1000, val)); 
+                          }}
+                          className="w-full pl-12 pr-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-mono text-lg font-bold text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-sky-400 transition-colors"
                           placeholder="100000"
                         />
                       </div>
@@ -1258,7 +1396,7 @@ export const FinanceCalculators: React.FC = () => {
                                 setAiAmount(btn.val);
                               }
                             }}
-                            className="px-2.5 py-2 text-xs font-bold bg-white hover:bg-zinc-100 text-zinc-700 rounded-lg border border-zinc-200 transition-colors cursor-pointer"
+                            className="px-2.5 py-2 text-xs font-bold bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-200 rounded-lg border border-zinc-200 dark:border-zinc-700 transition-colors cursor-pointer"
                           >
                             {btn.label}
                           </button>
@@ -1269,58 +1407,58 @@ export const FinanceCalculators: React.FC = () => {
 
                   {/* Key Institutional Metrics Banner */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-2xs">
-                      <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 shadow-2xs transition-colors">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-1">
                         Retorno Real Alvo
                       </div>
-                      <div className="text-xl font-black text-indigo-700">
+                      <div className="text-xl font-black text-indigo-700 dark:text-indigo-300">
                         {currentStrategy.expectedRealReturn}
                       </div>
-                      <div className="text-[11px] text-zinc-400 mt-1">Acima da Inflação Oficial</div>
+                      <div className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-1">Acima da Inflação Oficial</div>
                     </div>
-                    <div className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-2xs">
-                      <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 shadow-2xs transition-colors">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-1">
                         Volatilidade Projetada
                       </div>
-                      <div className="text-xl font-black text-zinc-900">
+                      <div className="text-xl font-black text-zinc-900 dark:text-white">
                         {currentStrategy.volatilityEstimate}
                       </div>
-                      <div className="text-[11px] text-zinc-400 mt-1">Desvio padrão anualizado</div>
+                      <div className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-1">Desvio padrão anualizado</div>
                     </div>
-                    <div className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-2xs">
-                      <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 shadow-2xs transition-colors">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-1">
                         Índice de Sharpe
                       </div>
-                      <div className="text-xl font-black text-emerald-600 flex items-center gap-1">
+                      <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                         {currentStrategy.sharpeEstimate.toFixed(2)}
-                        <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded">
+                        <span className="text-[10px] bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-bold px-1.5 py-0.2 rounded border border-transparent dark:border-emerald-800">
                           Alto
                         </span>
                       </div>
-                      <div className="text-[11px] text-zinc-400 mt-1">Retorno / Risco Suportado</div>
+                      <div className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-1">Retorno / Risco Suportado</div>
                     </div>
-                    <div className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-2xs">
-                      <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 shadow-2xs transition-colors">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-1">
                         Rebalanceamento
                       </div>
-                      <div className="text-sm font-bold text-zinc-800 line-clamp-1">
+                      <div className="text-sm font-bold text-zinc-800 dark:text-zinc-200 line-clamp-1">
                         {currentStrategy.rebalanceBand}
                       </div>
-                      <div className="text-[11px] text-zinc-400 mt-1">Gatilho disciplinado</div>
+                      <div className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-1">Gatilho disciplinado</div>
                     </div>
                   </div>
 
                   {/* Visual Distribution & Strategic Thesis */}
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
                     {/* Left: Interactive Donut Chart */}
-                    <div className="lg:col-span-5 bg-white border border-zinc-200 rounded-2xl p-6 flex flex-col justify-between">
+                    <div className="lg:col-span-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 flex flex-col justify-between transition-colors">
                       <div>
                         <div className="flex items-center justify-between mb-4">
-                          <h3 className="text-sm font-black uppercase tracking-wider text-zinc-800 flex items-center gap-1.5">
-                            <BarChart3 className="w-4 h-4 text-indigo-600" />
+                          <h3 className="text-sm font-black uppercase tracking-wider text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
+                            <BarChart3 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                             Composição da Carteira
                           </h3>
-                          <span className="text-xs text-zinc-500 font-bold">
+                          <span className="text-xs text-zinc-500 dark:text-zinc-400 font-bold">
                             {allocatedAssets.length} Classes
                           </span>
                         </div>
@@ -1360,19 +1498,19 @@ export const FinanceCalculators: React.FC = () => {
                             </PieChart>
                           </ResponsiveContainer>
                           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                            <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Total</span>
-                            <span className="text-sm font-black text-zinc-800">100%</span>
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Total</span>
+                            <span className="text-sm font-black text-zinc-800 dark:text-zinc-100">100%</span>
                           </div>
                         </div>
                       </div>
 
                       {/* Mini Legend */}
-                      <div className="mt-4 pt-4 border-t border-zinc-100 grid grid-cols-2 gap-2 text-xs">
+                      <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800 grid grid-cols-2 gap-2 text-xs">
                         {allocatedAssets.map((asset, idx) => (
                           <div key={idx} className="flex items-center gap-2">
                             <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: asset.color }} />
-                            <span className="text-zinc-600 font-medium truncate text-[11px]">{asset.name}</span>
-                            <span className="text-zinc-900 font-bold text-[11px] ml-auto">{asset.percentage}%</span>
+                            <span className="text-zinc-600 dark:text-zinc-400 font-medium truncate text-[11px]">{asset.name}</span>
+                            <span className="text-zinc-900 dark:text-white font-bold text-[11px] ml-auto">{asset.percentage}%</span>
                           </div>
                         ))}
                       </div>
@@ -1487,7 +1625,7 @@ export const FinanceCalculators: React.FC = () => {
                       {allocatedAssets.map((asset, index) => (
                         <div
                           key={index}
-                          className="bg-white border border-zinc-200 rounded-2xl p-5 shadow-2xs hover:border-zinc-300 transition-all flex flex-col justify-between"
+                          className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-2xs hover:border-zinc-300 dark:hover:border-zinc-700 transition-all flex flex-col justify-between"
                         >
                           <div>
                             {/* Card Top: Share, Name, Nominal Value */}
@@ -1500,37 +1638,37 @@ export const FinanceCalculators: React.FC = () => {
                                   {asset.percentage}%
                                 </div>
                                 <div>
-                                  <h4 className="font-bold text-zinc-900 text-sm">{asset.name}</h4>
-                                  <span className="text-[11px] font-bold text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded-md mt-0.5 inline-block">
+                                  <h4 className="font-bold text-zinc-900 dark:text-white text-sm">{asset.name}</h4>
+                                  <span className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-md mt-0.5 inline-block border border-transparent dark:border-zinc-700">
                                     {asset.category}
                                   </span>
                                 </div>
                               </div>
                               <div className="text-right">
-                                <span className="text-[10px] uppercase font-bold text-zinc-400 block">Alocação Exata</span>
-                                <span className="font-mono font-black text-base text-zinc-900">
+                                <span className="text-[10px] uppercase font-bold text-zinc-400 dark:text-zinc-500 block">Alocação Exata</span>
+                                <span className="font-mono font-black text-base text-zinc-900 dark:text-white">
                                   {safeNumber(asset.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                 </span>
                               </div>
                             </div>
 
                             {/* Rationale */}
-                            <p className="text-xs text-zinc-600 leading-relaxed mb-4 bg-zinc-50 p-3 rounded-xl border border-zinc-100">
+                            <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed mb-4 bg-zinc-50 dark:bg-zinc-950 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800 transition-colors">
                               {asset.rationale}
                             </p>
                           </div>
 
                           {/* Instrumentos Recomendados e Informações Operacionais */}
-                          <div className="pt-3 border-t border-zinc-100 space-y-2 text-xs">
+                          <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800 space-y-2 text-xs">
                             <div>
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-1">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 block mb-1">
                                 Instrumentos Práticos no Brasil & Exterior:
                               </span>
                               <div className="flex flex-wrap gap-1.5">
                                 {asset.recommendedInstruments.map((inst, i) => (
                                   <span
                                     key={i}
-                                    className="bg-indigo-50 text-indigo-900 font-semibold px-2 py-0.5 rounded-md text-[11px] border border-indigo-100"
+                                    className="bg-indigo-50 dark:bg-indigo-950/60 text-indigo-900 dark:text-indigo-300 font-semibold px-2 py-0.5 rounded-md text-[11px] border border-indigo-100 dark:border-indigo-800"
                                   >
                                     {inst}
                                   </span>
@@ -1538,7 +1676,7 @@ export const FinanceCalculators: React.FC = () => {
                               </div>
                             </div>
 
-                            <div className="flex items-center justify-between text-[11px] pt-1 text-zinc-500">
+                            <div className="flex items-center justify-between text-[11px] pt-1 text-zinc-500 dark:text-zinc-400">
                               <span><strong>Tributação:</strong> {asset.taxStatus}</span>
                               <span><strong>Liquidez:</strong> {asset.liquidity}</span>
                             </div>

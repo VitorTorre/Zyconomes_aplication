@@ -2,6 +2,8 @@
  * Zyconomes Input Encapsulator & Operational Incident Safeguard
  * 
  * Implementação de blindagem fiduciária de inputs numéricos e textuais:
+ * - Verificação exata de cada input contra comandos e scripts maliciosos (XSS, Shell, SQL, Injeções de Código);
+ * - Bloqueio de caracteres não-numéricos em campos monetários e atuariais sem travar a aplicação;
  * - Encapsulamento preventivo contra NaN, Infinity, valores negativos em prazos/taxas e strings espúrias;
  * - Prevenção de quebras de renderização em sessões longas (2 a 4 horas ininterruptas);
  * - Formatação de registros de intercorrências em formato .txt estéril protegido por cabeçalho em 15 linguagens;
@@ -14,6 +16,7 @@ export interface EncapsulatedInputResult<T = number> {
   originalRawValue: any;
   fieldId: string;
   errorMessage?: string;
+  detectedThreats?: string[];
 }
 
 export interface OperationalIncident {
@@ -26,6 +29,24 @@ export interface OperationalIncident {
   userRole?: string;
   userEmail?: string;
   sessionId?: string;
+}
+
+export interface ThreatSignature {
+  name: string;
+  category: 'SCRIPT_INJECTION' | 'SHELL_COMMAND' | 'SQL_INJECTION' | 'CODE_EXECUTION' | 'MALFORMED_NON_NUMERIC';
+  regex: RegExp;
+  description: string;
+}
+
+export interface ExactVerificationResult {
+  isValidExactNumeric: boolean;
+  hasCommandOrScriptThreat: boolean;
+  detectedThreats: string[];
+  threatCategory?: ThreatSignature['category'];
+  originalRawValue: any;
+  sanitizedValue: number;
+  feedbackMessage: string;
+  wasSanitized: boolean;
 }
 
 // Limites globais fiduciários para cálculos financeiros
@@ -41,7 +62,321 @@ export const INPUT_CONSTRAINTS = {
 };
 
 /**
- * Encapsula e sanitiza valores numéricos com limites estritos
+ * Assinaturas estritas de comandos e scripts para comparação em tempo de execução
+ */
+export const SCRIPT_AND_COMMAND_SIGNATURES: ThreatSignature[] = [
+  // 1. Script & Web Injection (XSS)
+  {
+    name: 'XSS Script Tag',
+    category: 'SCRIPT_INJECTION',
+    regex: /<\s*script\b[^>]*>.*?<\s*\/\s*script\s*>/is,
+    description: 'Tentativa de injeção de bloco de script HTML/JavaScript'
+  },
+  {
+    name: 'XSS Open/Close Script Tag',
+    category: 'SCRIPT_INJECTION',
+    regex: /<\s*\/?\s*script\b/i,
+    description: 'Tag de abertura ou fechamento de script'
+  },
+  {
+    name: 'JavaScript Protocol',
+    category: 'SCRIPT_INJECTION',
+    regex: /javascript\s*:/i,
+    description: 'Pseudo-protocolo javascript:'
+  },
+  {
+    name: 'VBScript Protocol',
+    category: 'SCRIPT_INJECTION',
+    regex: /vbscript\s*:/i,
+    description: 'Pseudo-protocolo vbscript:'
+  },
+  {
+    name: 'DOM Inline Event Handler',
+    category: 'SCRIPT_INJECTION',
+    regex: /\b(onload|onerror|onclick|onmouseover|onfocus|onblur|onkeydown|onkeyup|onsubmit)\s*=/i,
+    description: 'Manipulador inline de eventos do navegador'
+  },
+  {
+    name: 'Dynamic Code Evaluation',
+    category: 'SCRIPT_INJECTION',
+    regex: /\b(eval|setTimeout|setInterval|Function)\s*\(/i,
+    description: 'Função de avaliação dinâmica de código'
+  },
+  {
+    name: 'DOM Document Manipulation',
+    category: 'SCRIPT_INJECTION',
+    regex: /\b(document\.(cookie|location|write|domain)|window\.(location|open))\b/i,
+    description: 'Acesso reflexivo a cookies ou propriedades da janela'
+  },
+  {
+    name: 'Embedded HTML Element',
+    category: 'SCRIPT_INJECTION',
+    regex: /<\s*(iframe|object|embed|svg|img|style|link|body|meta|input|form)\b/i,
+    description: 'Injeção de tags HTML ativas ou incorporáveis'
+  },
+
+  // 2. Shell & Terminal Commands
+  {
+    name: 'Unix/Linux Shell Command',
+    category: 'SHELL_COMMAND',
+    regex: /\b(sudo\s+|rm\s+-rf|rm\s+|cat\s+\/|chmod\s+|chown\s+|curl\s+|wget\s+|nc\s+|kill\s+|whoami|uname|grep\s+|touch\s+|echo\s+)/i,
+    description: 'Comando de terminal Unix/Linux'
+  },
+  {
+    name: 'Shell Redirection & Piping',
+    category: 'SHELL_COMMAND',
+    regex: /(\|{1,2}|&{1,2}|;|\$\(|\`|>+\s*\/dev\/null)/,
+    description: 'Operador de pipe, concatenação ou redirecionamento de shell'
+  },
+  {
+    name: 'Windows Command Prompt / PowerShell',
+    category: 'SHELL_COMMAND',
+    regex: /\b(cmd\.exe|powershell|Invoke-Expression|del\s+\/|dir\s+\/|type\s+nul|taskkill)/i,
+    description: 'Comando do Prompt de Comando ou PowerShell'
+  },
+  {
+    name: 'Process Spawning Primitive',
+    category: 'SHELL_COMMAND',
+    regex: /\b(exec\s*\(|spawn\s*\(|system\s*\(|popen\s*\(|execSync\s*\()/i,
+    description: 'Chamada de criação ou execução de processo do sistema operacional'
+  },
+
+  // 3. SQL Injection
+  {
+    name: 'SQL Statement Manipulation',
+    category: 'SQL_INJECTION',
+    regex: /\b(SELECT\s+.+\s+FROM|DROP\s+TABLE|INSERT\s+INTO|DELETE\s+FROM|UPDATE\s+.+\s+SET|UNION\s+SELECT|ALTER\s+TABLE|TRUNCATE\s+TABLE)\b/i,
+    description: 'Comando estruturado de consulta ou manipulação SQL'
+  },
+  {
+    name: 'SQL Boolean Logic Bypass',
+    category: 'SQL_INJECTION',
+    regex: /('|\b)(OR|AND)\s+('?\d+'?|\d+)\s*=\s*('?\d+'?|\d+)/i,
+    description: 'Expressão tautológica de injeção SQL (1=1)'
+  },
+  {
+    name: 'SQL Comment Delimiter',
+    category: 'SQL_INJECTION',
+    regex: /(--|\/\*|\*\/|;\s*--)/,
+    description: 'Delimitador de comentário para quebra de sintaxe SQL'
+  },
+  {
+    name: 'SQL Stored Procedure Execution',
+    category: 'SQL_INJECTION',
+    regex: /\b(EXEC|EXECUTE|xp_cmdshell|sp_executesql)\b/i,
+    description: 'Execução de procedimento armazenado de banco de dados'
+  },
+
+  // 4. Runtime Module & Code Injections
+  {
+    name: 'Module Import / Process Exit',
+    category: 'CODE_EXECUTION',
+    regex: /\b(require\s*\(|import\s*\(|process\.(exit|env)|fs\.\w+)/i,
+    description: 'Injeção de importação de módulos ou chamada de término de processo'
+  },
+  {
+    name: 'Programming Block Execution',
+    category: 'CODE_EXECUTION',
+    regex: /\b(def\s+\w+|function\s*\(|class\s+\w+|console\.log)/i,
+    description: 'Declaração ou bloco de linguagem de programação'
+  }
+];
+
+/**
+ * Inspeciona minuciosamente uma string de entrada contra assinaturas de comandos e scripts
+ */
+export function inspectForCommandsAndScripts(rawValue: string): {
+  hasThreat: boolean;
+  detectedThreats: string[];
+  threatCategory?: ThreatSignature['category'];
+} {
+  if (!rawValue || typeof rawValue !== 'string') {
+    return { hasThreat: false, detectedThreats: [] };
+  }
+
+  const detectedThreats: string[] = [];
+  let threatCategory: ThreatSignature['category'] | undefined = undefined;
+
+  for (const signature of SCRIPT_AND_COMMAND_SIGNATURES) {
+    if (signature.regex.test(rawValue)) {
+      detectedThreats.push(signature.name);
+      if (!threatCategory) {
+        threatCategory = signature.category;
+      }
+    }
+  }
+
+  return {
+    hasThreat: detectedThreats.length > 0,
+    detectedThreats,
+    threatCategory,
+  };
+}
+
+/**
+ * Realiza verificação exata e comparação de cada input contra comandos e scripts,
+ * filtrando qualquer caractere não numérico para garantir estabilidade contínua sem travar o site.
+ */
+export function verifyExactInput(
+  rawValue: any,
+  fieldId = 'unknown_field',
+  fallbackDefault = 0,
+  min = 0,
+  max = Number.MAX_SAFE_INTEGER
+): ExactVerificationResult {
+  // Caso 1: Nulo ou indefinido
+  if (rawValue === null || rawValue === undefined || rawValue === '') {
+    return {
+      isValidExactNumeric: true,
+      hasCommandOrScriptThreat: false,
+      detectedThreats: [],
+      originalRawValue: rawValue,
+      sanitizedValue: fallbackDefault,
+      feedbackMessage: 'Valor padrão aplicado com sucesso.',
+      wasSanitized: false,
+    };
+  }
+
+  // Caso 2: Já é um número puro
+  if (typeof rawValue === 'number') {
+    if (Number.isNaN(rawValue) || !Number.isFinite(rawValue)) {
+      recordLocalOperationalIncident({
+        id: `sec-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        timestamp: new Date().toISOString(),
+        fieldId,
+        receivedParam: String(rawValue),
+        sanitizedParam: String(fallbackDefault),
+        errorReason: 'Número inválido (NaN ou Infinity) contido e restaurado para padrão seguro',
+      });
+      return {
+        isValidExactNumeric: false,
+        hasCommandOrScriptThreat: false,
+        detectedThreats: ['NaN / Infinity'],
+        originalRawValue: rawValue,
+        sanitizedValue: fallbackDefault,
+        feedbackMessage: 'O valor numérico inválido foi ajustado automaticamente.',
+        wasSanitized: true,
+      };
+    }
+
+    const clamped = Math.max(min, Math.min(max, rawValue));
+    return {
+      isValidExactNumeric: true,
+      hasCommandOrScriptThreat: false,
+      detectedThreats: [],
+      originalRawValue: rawValue,
+      sanitizedValue: clamped,
+      feedbackMessage: 'Entrada numérica íntegra e validada.',
+      wasSanitized: clamped !== rawValue,
+    };
+  }
+
+  // Caso 3: String de entrada — Início da verificação exata
+  const rawString = String(rawValue);
+
+  // 1. Verificação contra scripts e comandos maliciosos
+  const threatCheck = inspectForCommandsAndScripts(rawString);
+
+  // 2. Verificação de caracteres estritamente permitidos para moeda/números:
+  // Permitidos: dígitos 0-9, vírgula, ponto, sinal negativo, espaços e símbolos de moeda R$, $
+  const hasForbiddenCharacters = /[^0-9.,\sR$+\-%]/i.test(rawString);
+
+  let wasSanitized = false;
+  let parsed = fallbackDefault;
+
+  // Extração limpa de apenas dígitos e separadores decimais
+  let cleanNumericStr = rawString
+    // Remove tags HTML se presentes
+    .replace(/<[^>]*>/g, '')
+    // Remove caracteres especiais de injeção
+    .replace(/[;`'"\\/|&<>(){}\[\]$]/g, '')
+    // Remove símbolos de moeda e texto
+    .replace(/[R$\s%a-zA-Z]/g, '')
+    // Normaliza separadores de milhar e decimais padrão pt-BR
+    .replace(/\./g, '')
+    .replace(',', '.');
+
+  // Garante apenas um ponto decimal
+  const parts = cleanNumericStr.split('.');
+  if (parts.length > 2) {
+    cleanNumericStr = parts[0] + '.' + parts.slice(1).join('');
+  }
+
+  const numericCandidate = parseFloat(cleanNumericStr);
+
+  if (!Number.isNaN(numericCandidate) && Number.isFinite(numericCandidate)) {
+    parsed = numericCandidate;
+  } else {
+    parsed = fallbackDefault;
+    wasSanitized = true;
+  }
+
+  // Clamping fiduciário
+  const clamped = Math.max(min, Math.min(max, parsed));
+  if (clamped !== parsed) {
+    wasSanitized = true;
+  }
+
+  // Se foram detectadas ameaças de scripts/comandos ou caracteres proibidos
+  if (threatCheck.hasThreat || hasForbiddenCharacters) {
+    wasSanitized = true;
+    const threatsList = [...threatCheck.detectedThreats];
+    if (hasForbiddenCharacters && threatsList.length === 0) {
+      threatsList.push('Caracteres não-numéricos proibidos');
+    }
+
+    // Registra incidente de segurança operacional
+    recordLocalOperationalIncident({
+      id: `sec-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      timestamp: new Date().toISOString(),
+      fieldId,
+      receivedParam: rawString.slice(0, 150),
+      sanitizedParam: String(clamped),
+      errorReason: `[BLOQUEIO DE SEGURANÇA] Injeção de comando/script ou caractere não numérico neutralizado: ${threatsList.join(', ')}`,
+    });
+
+    // Emite evento no navegador para feedback não-intrusivo da UI
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      try {
+        window.dispatchEvent(new CustomEvent('zyc_input_threat_neutralized', {
+          detail: {
+            fieldId,
+            threats: threatsList,
+            receivedParam: rawString.slice(0, 60),
+            sanitizedValue: clamped,
+            timestamp: new Date().toISOString(),
+          }
+        }));
+      } catch {
+        // Safe fallback
+      }
+    }
+
+    return {
+      isValidExactNumeric: false,
+      hasCommandOrScriptThreat: threatCheck.hasThreat,
+      detectedThreats: threatsList,
+      threatCategory: threatCheck.threatCategory || 'MALFORMED_NON_NUMERIC',
+      originalRawValue: rawValue,
+      sanitizedValue: clamped,
+      feedbackMessage: 'Comandos ou caracteres não-numéricos foram bloqueados e sanitizados com sucesso. O sistema permanece estável e íntegro.',
+      wasSanitized: true,
+    };
+  }
+
+  return {
+    isValidExactNumeric: true,
+    hasCommandOrScriptThreat: false,
+    detectedThreats: [],
+    originalRawValue: rawValue,
+    sanitizedValue: clamped,
+    feedbackMessage: 'Entrada validada com sucesso.',
+    wasSanitized,
+  };
+}
+
+/**
+ * Encapsula e sanitiza valores numéricos com verificação exata e limites estritos
  */
 export function safeParseNumber(
   rawValue: any,
@@ -50,132 +385,58 @@ export function safeParseNumber(
   max = Number.MAX_SAFE_INTEGER,
   fieldId = 'unknown_field'
 ): EncapsulatedInputResult<number> {
-  let wasAdjusted = false;
-  let parsed = fallbackDefault;
-
-  if (rawValue === null || rawValue === undefined || rawValue === '') {
-    return {
-      value: fallbackDefault,
-      wasAdjusted: false,
-      originalRawValue: rawValue,
-      fieldId,
-    };
-  }
-
-  if (typeof rawValue === 'number') {
-    if (Number.isNaN(rawValue) || !Number.isFinite(rawValue)) {
-      wasAdjusted = true;
-      parsed = fallbackDefault;
-    } else {
-      parsed = rawValue;
-    }
-  } else if (typeof rawValue === 'string') {
-    // Remove formatação de moeda R$, espaços, pontos de milhar
-    const cleaned = rawValue
-      .replace(/[R$\s]/g, '')
-      .replace(/\./g, '')
-      .replace(',', '.');
-    const num = parseFloat(cleaned);
-    if (Number.isNaN(num) || !Number.isFinite(num)) {
-      wasAdjusted = true;
-      parsed = fallbackDefault;
-    } else {
-      parsed = num;
-    }
-  } else {
-    wasAdjusted = true;
-    parsed = fallbackDefault;
-  }
-
-  // Aplicação de limites
-  if (parsed < min) {
-    parsed = min;
-    wasAdjusted = true;
-  } else if (parsed > max) {
-    parsed = max;
-    wasAdjusted = true;
-  }
+  const verification = verifyExactInput(rawValue, fieldId, fallbackDefault, min, max);
 
   return {
-    value: parsed,
-    wasAdjusted,
+    value: verification.sanitizedValue,
+    wasAdjusted: verification.wasSanitized,
     originalRawValue: rawValue,
     fieldId,
-    errorMessage: wasAdjusted ? `Valor ajustado para faixa segura [${min}, ${max}]` : undefined,
+    errorMessage: verification.wasSanitized ? verification.feedbackMessage : undefined,
+    detectedThreats: verification.detectedThreats,
   };
 }
 
 /**
- * Encapsulador específico para aportes monetários
+ * Encapsulador específico para aportes monetários com bloqueio de comandos e scripts
  */
 export function safeMonetaryInput(rawValue: any, fieldId = 'monetary_amount', fallback = 1000): number {
-  const result = safeParseNumber(
+  const result = verifyExactInput(
     rawValue,
+    fieldId,
     fallback,
     INPUT_CONSTRAINTS.MIN_MONETARY,
-    INPUT_CONSTRAINTS.MAX_MONETARY,
-    fieldId
+    INPUT_CONSTRAINTS.MAX_MONETARY
   );
-  if (result.wasAdjusted) {
-    recordLocalOperationalIncident({
-      id: `inc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      timestamp: new Date().toISOString(),
-      fieldId,
-      receivedParam: String(rawValue),
-      sanitizedParam: String(result.value),
-      errorReason: 'Monetary input exceeded safety bounds or contained invalid characters',
-    });
-  }
-  return result.value;
+  return result.sanitizedValue;
 }
 
 /**
- * Encapsulador para taxa anual de juros
+ * Encapsulador para taxa anual de juros com bloqueio de scripts
  */
 export function safeRateInput(rawValue: any, fieldId = 'interest_rate', fallback = 10): number {
-  const result = safeParseNumber(
+  const result = verifyExactInput(
     rawValue,
+    fieldId,
     fallback,
     INPUT_CONSTRAINTS.MIN_ANNUAL_RATE,
-    INPUT_CONSTRAINTS.MAX_ANNUAL_RATE,
-    fieldId
+    INPUT_CONSTRAINTS.MAX_ANNUAL_RATE
   );
-  if (result.wasAdjusted) {
-    recordLocalOperationalIncident({
-      id: `inc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      timestamp: new Date().toISOString(),
-      fieldId,
-      receivedParam: String(rawValue),
-      sanitizedParam: String(result.value),
-      errorReason: 'Interest rate outside bounded interval [0%, 1000%]',
-    });
-  }
-  return result.value;
+  return result.sanitizedValue;
 }
 
 /**
- * Encapsulador para prazo em meses
+ * Encapsulador para prazo em meses com bloqueio de scripts
  */
 export function safeMonthsInput(rawValue: any, fieldId = 'period_months', fallback = 12): number {
-  const result = safeParseNumber(
+  const result = verifyExactInput(
     rawValue,
+    fieldId,
     fallback,
     INPUT_CONSTRAINTS.MIN_MONTHS,
-    INPUT_CONSTRAINTS.MAX_MONTHS,
-    fieldId
+    INPUT_CONSTRAINTS.MAX_MONTHS
   );
-  const rounded = Math.round(result.value);
-  if (result.wasAdjusted || rounded !== result.value) {
-    recordLocalOperationalIncident({
-      id: `inc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      timestamp: new Date().toISOString(),
-      fieldId,
-      receivedParam: String(rawValue),
-      sanitizedParam: String(rounded),
-      errorReason: 'Period months rounded or clamped to valid month interval',
-    });
-  }
-  return rounded;
+  return Math.round(result.sanitizedValue);
 }
 
 // Armazenamento em memória e localStorage para intercorrências

@@ -36,6 +36,7 @@ import {
   safeNumber
 } from '../lib/financeMath';
 import { trackGranularEvent } from '../lib/analytics';
+import { safeMonetaryInput, safeRateInput, safeParseNumber } from '../lib/inputEncapsulator';
 
 interface DebtPayoffAcceleratorProps {
   initialLoanAmount?: number;
@@ -202,7 +203,7 @@ export const DebtPayoffAccelerator: React.FC<DebtPayoffAcceleratorProps> = ({
                 type="number"
                 value={loanAmount}
                 onChange={(e) => {
-                  const val = Number(e.target.value);
+                  const val = safeMonetaryInput(e.target.value, 'loanAmount', loanAmount);
                   setLoanAmount(val);
                   onSyncContext?.(val, annualRate, loanYears);
                 }}
@@ -219,7 +220,7 @@ export const DebtPayoffAccelerator: React.FC<DebtPayoffAcceleratorProps> = ({
                 step="0.1"
                 value={annualRate}
                 onChange={(e) => {
-                  const val = Number(e.target.value);
+                  const val = safeRateInput(e.target.value, 'annualRate', annualRate);
                   setAnnualRate(val);
                   onSyncContext?.(loanAmount, val, loanYears);
                 }}
@@ -235,7 +236,7 @@ export const DebtPayoffAccelerator: React.FC<DebtPayoffAcceleratorProps> = ({
                 type="number"
                 value={loanYears}
                 onChange={(e) => {
-                  const val = Number(e.target.value);
+                  const val = safeParseNumber(e.target.value, loanYears, 1, 50, 'loanYears').value;
                   setLoanYears(val);
                   onSyncContext?.(loanAmount, annualRate, val);
                 }}
@@ -282,7 +283,7 @@ export const DebtPayoffAccelerator: React.FC<DebtPayoffAcceleratorProps> = ({
                 type="number"
                 step="50"
                 value={extraMonthly}
-                onChange={(e) => setExtraMonthly(Number(e.target.value))}
+                onChange={(e) => setExtraMonthly(safeMonetaryInput(e.target.value, 'extraMonthly', extraMonthly))}
                 placeholder="Ex: 500"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/30 font-mono text-base font-bold text-emerald-900 dark:text-emerald-300"
               />
@@ -296,7 +297,7 @@ export const DebtPayoffAccelerator: React.FC<DebtPayoffAcceleratorProps> = ({
                 type="number"
                 step="500"
                 value={extraPeriodic}
-                onChange={(e) => setExtraPeriodic(Number(e.target.value))}
+                onChange={(e) => setExtraPeriodic(safeMonetaryInput(e.target.value, 'extraPeriodic', extraPeriodic))}
                 placeholder="Ex: 5000"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/30 font-mono text-base font-bold text-emerald-900 dark:text-emerald-300"
               />
